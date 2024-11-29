@@ -1,0 +1,61 @@
+2024-11-28 13:28:25,436 - ERROR - Error starting playback: http status: 400, code:-1 - https://api.spotify.com/v1/me/player/play?device_id=907992c54709732fabe9e2124b527a85e603d036:
+ Invalid track uri: spotify:track:null, reason: None
+Traceback (most recent call last):
+  File "/Users/varun/Documents/Python/spotify_mcp/.venv/lib/python3.12/site-packages/spotipy/client.py", line 275, in _internal_call
+    response.raise_for_status()
+  File "/Users/varun/Documents/Python/spotify_mcp/.venv/lib/python3.12/site-packages/requests/models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: https://api.spotify.com/v1/me/player/play?device_id=907992c54709732fabe9e2124b527a85e603d036
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/varun/Documents/Python/spotify_mcp/src/spotify_mcp/spotify_api.py", line 126, in start_playback
+    result = self.sp.start_playback(uris=uris, device_id=device_id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/varun/Documents/Python/spotify_mcp/.venv/lib/python3.12/site-packages/spotipy/client.py", line 1837, in start_playback
+    return self._put(
+           ^^^^^^^^^^
+  File "/Users/varun/Documents/Python/spotify_mcp/.venv/lib/python3.12/site-packages/spotipy/client.py", line 342, in _put
+    return self._internal_call("PUT", url, payload, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/varun/Documents/Python/spotify_mcp/.venv/lib/python3.12/site-packages/spotipy/client.py", line 297, in _internal_call
+    raise SpotifyException(
+spotipy.exceptions.SpotifyException: http status: 400, code:-1 - https://api.spotify.com/v1/me/player/play?device_id=907992c54709732fabe9e2124b527a85e603d036:
+ Invalid track uri: spotify:track:null, reason: None
+2024-11-28 13:28:25,439 - ERROR - Spotify Client error occurred: http status: 400, code:-1 - https://api.spotify.com/v1/me/player/play?device_id=907992c54709732fabe9e2124b527a85e603d036:
+ Invalid track uri: spotify:track:null, reason: None
+Traceback (most recent call last):
+  File "/Users/varun/Documents/Python/spotify_mcp/.venv/lib/python3.12/site-packages/spotipy/client.py", line 275, in _internal_call
+    response.raise_for_status()
+  File "/Users/varun/Documents/Python/spotify_mcp/.venv/lib/python3.12/site-packages/requests/models.py", line 1024, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: https://api.spotify.com/v1/me/player/play?device_id=907992c54709732fabe9e2124b527a85e603d036
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/varun/Documents/Python/spotify_mcp/src/spotify_mcp/server.py", line 109, in handle_call_tool
+    spotify_client.start_playback(**arguments)
+  File "/Users/varun/Documents/Python/spotify_mcp/src/spotify_mcp/utils.py", line 117, in wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/varun/Documents/Python/spotify_mcp/src/spotify_mcp/spotify_api.py", line 126, in start_playback
+    result = self.sp.start_playback(uris=uris, device_id=device_id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/varun/Documents/Python/spotify_mcp/.venv/lib/python3.12/site-packages/spotipy/client.py", line 1837, in start_playback
+    return self._put(
+           ^^^^^^^^^^
+  File "/Users/varun/Documents/Python/spotify_mcp/.venv/lib/python3.12/site-packages/spotipy/client.py", line 342, in _put
+    return self._internal_call("PUT", url, payload, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/varun/Documents/Python/spotify_mcp/.venv/lib/python3.12/site-packages/spotipy/client.py", line 297, in _internal_call
+    raise SpotifyException(
+spotipy.exceptions.SpotifyException: http status: 400, code:-1 - https://api.spotify.com/v1/me/player/play?device_id=907992c54709732fabe9e2124b527a85e603d036:
+ Invalid track uri: spotify:track:null, reason: None
+2024-11-28 13:48:28,513 - ERROR - Error starting playback: 'NoneType' object has no attribute 'get'
+Traceback (most recent call last):
+  File "/Users/varun/Documents/Python/spotify_mcp/src/spotify_mcp/spotify_api.py", line 119, in start_playback
+    if not curr_track and curr_track.get('is_playing', False):
+                          ^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get'
