@@ -1,30 +1,45 @@
 # spotify-mcp MCP server
 
-MCP project to connect Claude with Spotify. Built on top of [spotipy-dev's API](https://github.com/spotipy-dev/spotipy/tree/2.24.0). 
+MCP project to connect Claude with Spotify. Built on top of [spotipy-dev's API](https://github.com/spotipy-dev/spotipy/tree/2.24.0).
+A standalone repo for this project can be found at [github.com/varunneal/spotify-mcp](https://github.com/varunneal/spotify-mcp).
 
-## Quickstart
+## Features
+- Start and pause playback
+- Search for tracks/albums/artists/playlists
+- Get info about a track/album/artist/playlist
+- Manage the Spotify queue
 
-### Create Spotify API access
+## Demo
+
+[![Take Five](media/take5.mp4)]
+
+## Configuration
+
+### Getting Spotify API Keys
 Create an account on [developer.spotify.com](https://developer.spotify.com/). Navigate to [the dashboard](https://developer.spotify.com/dashboard). 
 Create an app with redirect_uri as http://localhost:8888. (You can choose any port you want but you must use http and localhost). 
-I set "APIs used" to "Web Playback SDK". 
+I set "APIs used" to "Web Playback SDK".
 
+### Run this project locally
+This project is not yet set up for ephemeral environments (e.g. `uvx` usage). 
+Run this project locally by cloning this repo
 
-## Set up spotify-mcp locally
-Clone this project in whatever location you want. 
+```bash
+git clone https://github.com/modelcontextprotocol/servers.git
+```
+
+Add this tool as a mcp server.
 
 On MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
 On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
-Add this tool as a mcp server. 
-<details>
-  <summary>Development/Unpublished Servers Configuration</summary>
-  ```
+
+  ```json
   "spotify": {
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/spotify_mcp",
+        "/path/to/servers/src/spotify",
         "run",
         "spotify-mcp"
       ],
@@ -35,24 +50,14 @@ Add this tool as a mcp server.
       }
     }
   ```
-</details>
 
+## TODO
 
-## Set up spotify-mcp via published server config
-TODO
-<details>
-  <summary>Published Servers Configuration</summary>
-  ```
-  "mcpServers": {
-    "spotify-mcp": {
-      "command": "uvx",
-      "args": [
-        "spotify-mcp"
-      ]
-    }
-  }
-  ```
-</details>
+Unfortunately, a bunch of cool features have [now been deprecated](https://techcrunch.com/2024/11/27/spotify-cuts-developer-access-to-several-of-its-recommendation-features/) 
+from the Spotify API. Most new features will be relatively minor or for the health of the project:
+- tests.
+- adding API support for managing playlists.
+- adding API support for paginated search results/playlists/albums.
 
 ## Development
 

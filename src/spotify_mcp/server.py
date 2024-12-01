@@ -103,13 +103,6 @@ class Search(ToolModel):
     limit: Optional[int] = Field(default=10, description="Maximum number of items to return")
 
 
-class Recommendations(ToolModel):
-    """Get track recommendations based on seed tracks, artists, or genres."""
-    seed_tracks: Optional[List[str]] = Field(default=None, description="List of track IDs to use as seeds")
-    seed_artists: Optional[List[str]] = Field(default=None, description="List of artist IDs to use as seeds")
-    seed_genres: Optional[List[str]] = Field(default=None, description="List of genre names to use as seeds")
-    limit: Optional[int] = Field(default=20, description="Number of tracks to recommend")
-
 
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
@@ -122,7 +115,6 @@ async def handle_list_tools() -> list[types.Tool]:
         Search.as_tool(),
         Queue.as_tool(),
         GetInfo.as_tool(),
-        # Recommendations.as_tool()
     ]
     logger.info(f"Available tools: {[tool.name for tool in tools]}")
     return tools
@@ -210,8 +202,8 @@ async def handle_call_tool(
                         )]
 
                     case "skip":
-                        num_skips = arguments.get("skip")
-                        spotify_client.skip_track(num_skips)
+                        num_skips = arguments.get("skip", 1)
+                        spotify_client.skip_track(n=num_skips)
                         return [types.TextContent(
                             type="text",
                             text="Skipped to next track."
@@ -234,15 +226,7 @@ async def handle_call_tool(
                     text=json.dumps(item_info, indent=2)
                 )]
 
-            case "Recommendations":
-                # todo:
-                logger.info(f"Getting recommendations with arguments: {arguments}")
-                recommendations = spotify_client.recommendations(**arguments)
-                logger.info("Recommendations retrieved successfully")
-                return [types.TextContent(
-                    type="text",
-                    text=json.dumps(recommendations, indent=2)
-                )]
+
 
             case _:
                 error_msg = f"Unknown tool: {name}"

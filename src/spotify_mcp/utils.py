@@ -18,14 +18,16 @@ def parse_track(track_item: dict, detailed=False) -> dict:
         narrowed_item['is_playing'] = track_item['is_playing']
 
     if detailed:
-        for k in ['album', 'track_number', 'duration_ms']:
+        narrowed_item['album'] = parse_album(track_item.get('album'))
+        for k in ['track_number', 'duration_ms']:
             narrowed_item[k] = track_item.get(k)
 
     if not track_item.get('is_playable', True):
         narrowed_item['is_playable'] = False
 
     artists = [a['name'] for a in track_item['artists']]
-
+    if detailed:
+        artists = [parse_artist(a) for a in track_item['artists']]
 
     if len(artists) == 1:
         narrowed_item['artist'] = artists[0]
@@ -35,25 +37,25 @@ def parse_track(track_item: dict, detailed=False) -> dict:
     return narrowed_item
 
 
-def parse_artist(artist_item: dict, verbose=False) -> dict:
+def parse_artist(artist_item: dict, detailed=False) -> dict:
     narrowed_item = {
         'name': artist_item['name'],
         'id': artist_item['id'],
     }
-    if verbose:
+    if detailed:
         narrowed_item['genres'] = artist_item.get('genres')
 
     return narrowed_item
 
 
-def parse_playlist(playlist_item: dict, verbose=False) -> dict:
+def parse_playlist(playlist_item: dict, detailed=False) -> dict:
     narrowed_item = {
         'name': playlist_item['name'],
         'id': playlist_item['id'],
+        'owner': playlist_item['owner']['display_name']
     }
-    if verbose:
-        for k in ['description', 'owner']:
-            narrowed_item[k] = playlist_item.get(k)
+    if detailed:
+        narrowed_item['description'] = playlist_item.get('description')
         tracks = []
         for t in playlist_item['tracks']['items']:
             tracks.append(parse_track(t['track']))
@@ -62,20 +64,28 @@ def parse_playlist(playlist_item: dict, verbose=False) -> dict:
     return narrowed_item
 
 
-def parse_album(album_item: dict, verbose=False) -> dict:
+def parse_album(album_item: dict, detailed=False) -> dict:
     narrowed_item = {
         'name': album_item['name'],
         'id': album_item['id'],
     }
 
-    if verbose:
+    artists = [a['name'] for a in album_item['artists']]
+
+    if detailed:
         tracks = []
         for t in album_item['tracks']['items']:
             tracks.append(parse_track(t))
         narrowed_item["tracks"] = tracks
+        artists = [parse_artist(a) for a in album_item['artists']]
 
         for k in ['total_tracks', 'release_date', 'genres']:
             narrowed_item[k] = album_item.get(k)
+
+    if len(artists) == 1:
+        narrowed_item['artist'] = artists[0]
+    else:
+        narrowed_item['artists'] = artists
 
     return narrowed_item
 

@@ -1,24 +1,19 @@
-import json
-import os
-from typing import Optional, Dict
 import logging
-from urllib.parse import quote
-from . import utils
+import os
+from typing import Optional, Dict, List
 
 import spotipy
-
 from dotenv import load_dotenv
-from spotipy import SpotifyException
-from spotipy.oauth2 import SpotifyOAuth
 from spotipy.cache_handler import CacheFileHandler
+from spotipy.oauth2 import SpotifyOAuth
+
+from . import utils
 
 load_dotenv()
 
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI")
-
-
+CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
 
 SCOPES = ["user-read-currently-playing", "user-read-playback-state", "user-read-currently-playing",  # spotify connect
           "app-remote-control", "streaming",  # playback
@@ -26,7 +21,6 @@ SCOPES = ["user-read-currently-playing", "user-read-playback-state", "user-read-
           # playlists
           "user-read-playback-position", "user-top-read", "user-read-recently-played",  # listening history
           "user-library-modify", "user-library-read",  # library
-
           ]
 
 
@@ -50,7 +44,7 @@ class Client:
             self.logger.error(f"Failed to initialize Spotify client: {str(e)}", exc_info=True)
             raise
 
-    def search(self, query: str, qtype: str ='track', limit=10):
+    def search(self, query: str, qtype: str = 'track', limit=10):
         """
         Searches based of query term.
         - query: query term
@@ -60,6 +54,11 @@ class Client:
         """
         results = self.sp.search(q=query, limit=limit, type=qtype)
         return utils.parse_search_results(results, qtype)
+
+
+    def recommendations(self, artists: Optional[List] = None, tracks: Optional[List] = None, limit=20):
+        recs = self.sp.recommendations(seed_artists=artists, seed_tracks=tracks, limit=limit)
+        return recs
 
 
     def get_info(self, item_id: str, qtype: str = 'track') -> dict:
@@ -72,19 +71,16 @@ class Client:
             case 'track':
                 return utils.parse_track(self.sp.track(item_id), detailed=True)
             case 'album':
-                # todo: add additional info about album
-                album_info = utils.parse_album(self.sp.album(item_id), verbose=True)
-                # album_tracks = utils.parse_search_results(self.sp.album_tracks(item_id), 'track')
+                album_info = utils.parse_album(self.sp.album(item_id), detailed=True)
                 return album_info
 
             case 'artist':
-                # todo: add additional info about artist
-                artist_info = utils.parse_artist(self.sp.artist(item_id), verbose=True)
+                artist_info = utils.parse_artist(self.sp.artist(item_id), detailed=True)
                 albums = self.sp.artist_albums(item_id)
                 top_tracks = self.sp.artist_top_tracks(item_id)['tracks']
                 albums_and_tracks = {
                     'albums': albums,
-                    'tracks':  {'items': top_tracks}
+                    'tracks': {'items': top_tracks}
                 }
                 parsed_info = utils.parse_search_results(albums_and_tracks, qtype="album,track")
                 artist_info['top_tracks'] = parsed_info['tracks']
@@ -92,10 +88,8 @@ class Client:
 
                 return artist_info
             case 'playlist':
-                # todo: add additional info about playlist
                 playlist = self.sp.playlist(item_id)
-                playlist_info = utils.parse_playlist(playlist, verbose=True)
-
+                playlist_info = utils.parse_playlist(playlist, detailed=True)
 
                 return playlist_info
 
@@ -177,7 +171,6 @@ class Client:
             return True
         return False
 
-
     def get_devices(self) -> dict:
         return self.sp.devices()['devices']
 
@@ -189,9 +182,8 @@ class Client:
         for device in devices:
             if device.get('is_active'):
                 return device
-        print(f"No active device, assigning {devices[0]['name']}.")
+        self.logger.info(f"No active device, assigning {devices[0]['name']}.")
         return devices[0]
-
 
     def auth_ok(self) -> bool:
         try:
@@ -205,7 +197,6 @@ class Client:
     def auth_refresh(self):
         self.auth_manager.validate_token(self.cache_handler.get_cached_token())
 
-
     def skip_track(self, n=1):
         for _ in range(n):
             self.sp.next_track()
@@ -218,6 +209,3 @@ class Client:
 
     def set_volume(self, volume_percent):
         self.sp.volume(volume_percent)
-
-
-
