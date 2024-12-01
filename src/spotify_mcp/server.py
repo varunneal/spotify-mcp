@@ -7,40 +7,48 @@ from typing import List, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
 
-from mcp.server.models import InitializationOptions
 import mcp.types as types
 from mcp.server import NotificationOptions, Server, stdio_server
-from pydantic import AnyUrl
-import mcp.server.stdio
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AnyUrl
 from spotipy import SpotifyException
 
 from . import spotify_api
 
-# Set up logging configuration
-log_dir = Path("/Users/varun/Documents/Python/spotify_mcp/logging")
-log_dir.mkdir(parents=True, exist_ok=True)
 
-# Create a formatter that includes timestamp
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+def setup_logger():
+    # TODO: can use mcp.server.stdio
+    logger = logging.getLogger("spotify_mcp")
 
-# Set up file handler for general logs
-log_file = log_dir / f"spotify_mcp_{datetime.now().strftime('%Y%m%d')}.log"
-file_handler = logging.FileHandler(log_file)
-file_handler.setFormatter(formatter)
+    # Check if LOGGING_PATH environment variable is set
+    logging_path = os.getenv("LOGGING_PATH")
 
-# Set up file handler specifically for errors
-error_log_file = log_dir / f"spotify_mcp_errors_{datetime.now().strftime('%Y%m%d')}.log"
-error_file_handler = logging.FileHandler(error_log_file)
-error_file_handler.setFormatter(formatter)
-error_file_handler.setLevel(logging.ERROR)
+    if os.getenv("LOGGING_PATH"):
+        log_dir = Path(logging_path)
+        log_dir.mkdir(parents=True, exist_ok=True)
 
-# Configure logger
-logger = logging.getLogger("spotify_mcp")
-logger.setLevel(logging.INFO)
-logger.addHandler(file_handler)
-logger.addHandler(error_file_handler)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
+        log_file = log_dir / f"spotify_mcp_{datetime.now().strftime('%Y%m%d')}.log"
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+
+        error_log_file = log_dir / f"spotify_mcp_errors_{datetime.now().strftime('%Y%m%d')}.log"
+        error_file_handler = logging.FileHandler(error_log_file)
+        error_file_handler.setFormatter(formatter)
+        error_file_handler.setLevel(logging.ERROR)
+
+        # Configure logger with both handlers
+        logger.setLevel(logging.INFO)
+        logger.addHandler(file_handler)
+        logger.addHandler(error_file_handler)
+    else:
+        # Use default logging configuration
+        logger.setLevel(logging.INFO)
+
+    return logger
+
+
+logger = setup_logger()
 server = Server("spotify-mcp")
 spotify_client = spotify_api.Client(logger)
 
@@ -49,10 +57,11 @@ class ToolModel(BaseModel):
     @classmethod
     def as_tool(cls):
         return types.Tool(
-            name=cls.__name__,
+            name="Spotify" + cls.__name__,
             description=cls.__doc__,
             inputSchema=cls.model_json_schema()
         )
+
 
 
 class GetCurrentTrack(ToolModel):
@@ -61,11 +70,45 @@ class GetCurrentTrack(ToolModel):
 
 
 class StartPlayback(ToolModel):
-    """Controls song playback. If song_id is omitted, resumes current playback."""
-    song_id: str | None = None
+    """Controls song playback. If track_id is omitted, resumes current playback."""
+    track_id: str | None = None
 
 
-print(StartPlayback.model_json_schema())
+class PausePlayback(ToolModel):
+    """Pauses the current playback."""
+    pass
+
+
+class Queue(ToolModel):
+    """Manage the playback queue - add tracks, view queue, or skip to next track."""
+    action: str = Field(description="Action to perform: 'add_track', 'get', or 'next'")
+    track_id: Optional[str] = Field(default=None, description="Track ID to add to queue (required for add_track action)")
+    num_skips: Optional[int] = Field(default=1, description="Number of tracks in queue to skip.")
+
+
+class GetInfo(ToolModel):
+    """
+    Get detailed information about a Spotify item (track, album, artist, or playlist).
+    """
+    item_id: str = Field(description="ID of the item to get information about")
+    qtype: str = Field(default="track", description="Type of item: 'track', 'album', 'artist', or 'playlist'. "
+                                                    "If 'playlist' or 'album', returns its tracks. If 'artist',"
+                                                    "returns albums and top tracks.")
+
+
+class Search(ToolModel):
+    """Search for tracks, albums, artists, or playlists on Spotify."""
+    query: str = Field(description="query term")
+    qtype: Optional[str] = Field(default="track", description="Type of items to search for (track, album, artist, playlist, or comma-separated combination)")
+    limit: Optional[int] = Field(default=10, description="Maximum number of items to return")
+
+
+class Recommendations(ToolModel):
+    """Get track recommendations based on seed tracks, artists, or genres."""
+    seed_tracks: Optional[List[str]] = Field(default=None, description="List of track IDs to use as seeds")
+    seed_artists: Optional[List[str]] = Field(default=None, description="List of artist IDs to use as seeds")
+    seed_genres: Optional[List[str]] = Field(default=None, description="List of genre names to use as seeds")
+    limit: Optional[int] = Field(default=20, description="Number of tracks to recommend")
 
 
 @server.list_tools()
@@ -74,7 +117,12 @@ async def handle_list_tools() -> list[types.Tool]:
     logger.info("Listing available tools")
     tools = [
         GetCurrentTrack.as_tool(),
-        StartPlayback.as_tool()
+        StartPlayback.as_tool(),
+        PausePlayback.as_tool(),
+        Search.as_tool(),
+        Queue.as_tool(),
+        GetInfo.as_tool(),
+        # Recommendations.as_tool()
     ]
     logger.info(f"Available tools: {[tool.name for tool in tools]}")
     return tools
@@ -86,9 +134,10 @@ async def handle_call_tool(
 ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Handle tool execution requests."""
     logger.info(f"Tool called: {name} with arguments: {arguments}")
+    assert name[:7] == "Spotify", f"Unknown tool: {name}"
 
     try:
-        match name:
+        match name[7:]:
             case "GetCurrentTrack":
                 logger.info("Attempting to get current track")
                 curr_track = spotify_client.get_current_track()
@@ -111,6 +160,88 @@ async def handle_call_tool(
                 return [types.TextContent(
                     type="text",
                     text="Playback starting with no errors."
+                )]
+
+            case "PausePlayback":
+                logger.info("Attempting to pause playback")
+                spotify_client.pause_playback()
+                logger.info("Playback paused successfully")
+                return [types.TextContent(
+                    type="text",
+                    text="Playback paused successfully."
+                )]
+
+            case "Search":
+                logger.info(f"Performing search with arguments: {arguments}")
+                search_results = spotify_client.search(
+                    query=arguments.get("query", ""),
+                    qtype=arguments.get("qtype", "track"),
+                    limit=arguments.get("limit", 10)
+                )
+                logger.info("Search completed successfully")
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(search_results, indent=2)
+                )]
+
+            case "Queue":
+                logger.info(f"Queue operation with arguments: {arguments}")
+                action = arguments.get("action")
+
+                match action:
+                    case "add_track":
+                        track_id = arguments.get("track_id")
+                        if not track_id:
+                            return [types.TextContent(
+                                type="text",
+                                text="track_id is required for add_track action"
+                            )]
+                        spotify_client.add_to_queue(track_id)
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Track added to queue successfully."
+                        )]
+
+                    case "get":
+                        queue = spotify_client.get_queue()
+                        return [types.TextContent(
+                            type="text",
+                            text=json.dumps(queue, indent=2)
+                        )]
+
+                    case "skip":
+                        num_skips = arguments.get("skip")
+                        spotify_client.skip_track(num_skips)
+                        return [types.TextContent(
+                            type="text",
+                            text="Skipped to next track."
+                        )]
+
+                    case _:
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Unknown queue action: {action}. Supported actions are: add_track, get, next"
+                        )]
+
+            case "GetInfo":
+                logger.info(f"Getting item info with arguments: {arguments}")
+                item_info = spotify_client.get_info(
+                    item_id=arguments.get("item_id"),
+                    qtype=arguments.get("qtype", "track")
+                )
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(item_info, indent=2)
+                )]
+
+            case "Recommendations":
+                # todo:
+                logger.info(f"Getting recommendations with arguments: {arguments}")
+                recommendations = spotify_client.recommendations(**arguments)
+                logger.info("Recommendations retrieved successfully")
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(recommendations, indent=2)
                 )]
 
             case _:

@@ -1,59 +1,44 @@
 # spotify-mcp MCP server
 
-MCP spotify project
-
-## Components
-
-### Resources
-
-The server implements a simple note storage system with:
-- Custom note:// URI scheme for accessing individual notes
-- Each note resource has a name, description and text/plain mimetype
-
-### Prompts
-
-The server provides a single prompt:
-- summarize-notes: Creates summaries of all stored notes
-  - Optional "style" argument to control detail level (brief/detailed)
-  - Generates prompt combining all current notes with style preference
-
-### Tools
-
-The server implements one tool:
-- add-note: Adds a new note to the server
-  - Takes "name" and "content" as required string arguments
-  - Updates server state and notifies clients of resource changes
-
-## Configuration
-
-[TODO: Add configuration details specific to your implementation]
+MCP project to connect Claude with Spotify. Built on top of @spotipy-dev's API. 
 
 ## Quickstart
 
-### Install
+### Create Spotify API access
+Create an account on [developer.spotify.com](https://developer.spotify.com/). Navigate to [the dashboard](https://developer.spotify.com/dashboard). 
+Create an app with redirect_uri as http://localhost:8888. (You can choose any port you want but you must use http and localhost). 
 
-#### Claude Desktop
+
+## Set up spotify-mcp locally
+Clone this project in whatever location you want. 
 
 On MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
 On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
+Add this tool as a mcp server. 
 <details>
   <summary>Development/Unpublished Servers Configuration</summary>
   ```
-  "mcpServers": {
-    "spotify-mcp": {
+  "spotify": {
       "command": "uv",
       "args": [
         "--directory",
-        "/Users/varun/Documents/Python/spotify_mcp",
+        "/path/to/spotify_mcp",
         "run",
         "spotify-mcp"
-      ]
+      ],
+      "env": {
+        "CLIENT_ID": YOUR_CLIENT_ID,
+        "CLIENT_SECRET": YOUR_CLIENT_SECRET,
+        "REDIRECT_URI": "http://localhost:8888"
+      }
     }
-  }
   ```
 </details>
 
+
+## Set up spotify-mcp via published server config
+TODO
 <details>
   <summary>Published Servers Configuration</summary>
   ```
@@ -69,6 +54,8 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 </details>
 
 ## Development
+
+(todo)
 
 ### Building and Publishing
 

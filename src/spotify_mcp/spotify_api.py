@@ -18,10 +18,7 @@ CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI")
 
-# print(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI)
 
-# if not (CLIENT_ID or CLIENT_SECRET or REDIRECT_URI):
-#     raise ValueError("Client ID and Secret environment variable required")
 
 SCOPES = ["user-read-currently-playing", "user-read-playback-state", "user-read-currently-playing",  # spotify connect
           "app-remote-control", "streaming",  # playback
@@ -38,11 +35,9 @@ class Client:
         """Initialize Spotify client with necessary permissions"""
         self.logger = logger
 
-        # Define the scopes we need for playback control
         scope = "user-library-read,user-read-playback-state,user-modify-playback-state,user-read-currently-playing"
 
         try:
-            # Create authenticated Spotify client
             self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
                 scope=scope,
                 client_id=CLIENT_ID,
@@ -55,32 +50,62 @@ class Client:
             self.logger.error(f"Failed to initialize Spotify client: {str(e)}", exc_info=True)
             raise
 
-    def auth_ok(self) -> bool:
-        try:
-            result = self.auth_manager.is_token_expired(self.cache_handler.get_cached_token())
-            self.logger.info(f"Auth check result: {'valid' if not result else 'expired'}")
-            return result
-        except Exception as e:
-            self.logger.error(f"Error checking auth status: {str(e)}", exc_info=True)
-            raise
-
-    def auth_refresh(self):
-        self.auth_manager.validate_token(self.cache_handler.get_cached_token())
-
-    def get_liked_songs(self):
-        results = self.sp.current_user_saved_tracks()
-        for idx, item in enumerate(results['items']):
-            track = item['track']
-            print(idx, track['artists'][0]['name'], " – ", track['name'])
-
-    def search(self, query, qtype='track', limit=10):
+    def search(self, query: str, qtype: str ='track', limit=10):
+        """
+        Searches based of query term.
+        - query: query term
+        - qtype: the types of items to return. One or more of 'artist', 'album',  'track', 'playlist'.
+                 If multiple types are desired, pass in a comma separated string; e.g. 'track,album'
+        - limit: max # items to return
+        """
         results = self.sp.search(q=query, limit=limit, type=qtype)
         return utils.parse_search_results(results, qtype)
+
+
+    def get_info(self, item_id: str, qtype: str = 'track') -> dict:
+        """
+        Returns more info about item.
+        - item_id: id.
+        - qtype: Either 'track', 'album', 'artist', or 'playlist'.
+        """
+        match qtype:
+            case 'track':
+                return utils.parse_track(self.sp.track(item_id), detailed=True)
+            case 'album':
+                # todo: add additional info about album
+                album_info = utils.parse_album(self.sp.album(item_id), verbose=True)
+                # album_tracks = utils.parse_search_results(self.sp.album_tracks(item_id), 'track')
+                return album_info
+
+            case 'artist':
+                # todo: add additional info about artist
+                artist_info = utils.parse_artist(self.sp.artist(item_id), verbose=True)
+                albums = self.sp.artist_albums(item_id)
+                top_tracks = self.sp.artist_top_tracks(item_id)['tracks']
+                albums_and_tracks = {
+                    'albums': albums,
+                    'tracks':  {'items': top_tracks}
+                }
+                parsed_info = utils.parse_search_results(albums_and_tracks, qtype="album,track")
+                artist_info['top_tracks'] = parsed_info['tracks']
+                artist_info['albums'] = parsed_info['albums']
+
+                return artist_info
+            case 'playlist':
+                # todo: add additional info about playlist
+                playlist = self.sp.playlist(item_id)
+                playlist_info = utils.parse_playlist(playlist, verbose=True)
+
+
+                return playlist_info
+
+        raise ValueError(f"uknown qtype {qtype}")
 
     def get_current_track(self) -> Optional[Dict]:
         """Get information about the currently playing track"""
         try:
-            current = self.sp.current_playback()
+            # current_playback vs current_user_playing_track?
+            current = self.sp.current_user_playing_track()
             if not current:
                 self.logger.info("No playback session found")
                 return None
@@ -96,45 +121,94 @@ class Client:
             self.logger.error("Error getting current track info", exc_info=True)
             raise
 
-    def get_devices(self) -> dict:
-        return self.sp.devices()['devices']
-
-    def is_active_device(self):
-        return any([device.get('is_active', False) for device in self.get_devices()])
-
-    def _get_candidate_device(self):
-        devices = self.get_devices()
-        for device in devices:
-            if device.get('is_active', False):
-                return device
-        print(f"No active device, assigning {devices[0]['name']}.")
-        return devices[0]
-
     @utils.validate
-    def start_playback(self, song_id=None, device=None):
-        """Play a specific song by its Spotify ID."""
+    def start_playback(self, track_id=None, device=None):
+        """
+        Starts track playback. If track_id is omitted, resumes current playback.
+        - track_id: ID of track to play, or None.
+        """
         try:
-            if not song_id:
-                curr_track = self.get_current_track()
-                if curr_track and curr_track.get('is_playing', False):
-                    self.logger.info("No song ID provided and playback already active.")
-                    return
+            if not track_id and self.is_track_playing():
+                self.logger.info("No track_id ID provided and playback already active.")
+                return
 
-            uris = [f'spotify:track:{song_id}'] if song_id else None
+            uris = [f'spotify:track:{track_id}'] if track_id else None
             device_id = device.get('id') if device else None
 
             result = self.sp.start_playback(uris=uris, device_id=device_id)
-            self.logger.info(f"Playback started successfully{' for song_id: ' + song_id if song_id else ''}")
+            self.logger.info(f"Playback started successfully{' for track_id: ' + track_id if track_id else ''}")
             return result
         except Exception as e:
             self.logger.error(f"Error starting playback: {str(e)}", exc_info=True)
             raise
 
-    def pause_playback(self):
-        self.sp.pause_playback()
+    @utils.validate
+    def pause_playback(self, device=None):
+        """Pauses playback."""
+        playback = self.sp.current_playback()
+        if playback and playback.get('is_playing'):
+            self.sp.pause_playback(device.get('id') if device else None)
 
-    def next_track(self):
-        self.sp.next_track()
+    @utils.validate
+    def add_to_queue(self, track_id: str, device=None):
+        """
+        Adds track to queue.
+        - track_id: ID of track to play.
+        """
+        self.sp.add_to_queue(track_id, device.get('id') if device else None)
+
+    def get_queue(self):
+        """Returns the current queue of tracks."""
+        return self.sp.queue()
+
+    def get_liked_songs(self):
+        # todo
+        results = self.sp.current_user_saved_tracks()
+        for idx, item in enumerate(results['items']):
+            track = item['track']
+            print(idx, track['artists'][0]['name'], " – ", track['name'])
+
+    def is_track_playing(self) -> bool:
+        """Returns if a track is actively playing."""
+        curr_track = self.get_current_track()
+        if not curr_track:
+            return False
+        if curr_track.get('is_playing'):
+            return True
+        return False
+
+
+    def get_devices(self) -> dict:
+        return self.sp.devices()['devices']
+
+    def is_active_device(self):
+        return any([device.get('is_active') for device in self.get_devices()])
+
+    def _get_candidate_device(self):
+        devices = self.get_devices()
+        for device in devices:
+            if device.get('is_active'):
+                return device
+        print(f"No active device, assigning {devices[0]['name']}.")
+        return devices[0]
+
+
+    def auth_ok(self) -> bool:
+        try:
+            result = self.auth_manager.is_token_expired(self.cache_handler.get_cached_token())
+            self.logger.info(f"Auth check result: {'valid' if not result else 'expired'}")
+            return result
+        except Exception as e:
+            self.logger.error(f"Error checking auth status: {str(e)}", exc_info=True)
+            raise
+
+    def auth_refresh(self):
+        self.auth_manager.validate_token(self.cache_handler.get_cached_token())
+
+
+    def skip_track(self, n=1):
+        for _ in range(n):
+            self.sp.next_track()
 
     def previous_track(self):
         self.sp.previous_track()

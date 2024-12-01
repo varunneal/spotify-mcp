@@ -1,33 +1,31 @@
-import json
-import os
-from typing import Optional, List, Dict
-from urllib.parse import quote
-
-import spotipy
-from dotenv import load_dotenv
-from spotipy import SpotifyException
-from spotipy.oauth2 import SpotifyOAuth
-
-
+from collections import defaultdict
+from typing import Optional, Dict
 import functools
-import inspect
-from typing import Callable, Any, TypeVar, cast
+from typing import Callable, TypeVar
+from typing import Optional, Dict
+from urllib.parse import quote
 
 T = TypeVar('T')
 
 
-def parse_track(track_item: dict) -> dict:
+def parse_track(track_item: dict, detailed=False) -> dict:
     narrowed_item = {
         'name': track_item['name'],
         'id': track_item['id'],
     }
 
-    if track_item.get('is_playing', False):
-        narrowed_item['is_playing'] = True
+    if 'is_playing' in track_item:
+        narrowed_item['is_playing'] = track_item['is_playing']
+
+    if detailed:
+        for k in ['album', 'track_number', 'duration_ms']:
+            narrowed_item[k] = track_item.get(k)
+
     if not track_item.get('is_playable', True):
         narrowed_item['is_playable'] = False
 
     artists = [a['name'] for a in track_item['artists']]
+
 
     if len(artists) == 1:
         narrowed_item['artist'] = artists[0]
@@ -37,13 +35,77 @@ def parse_track(track_item: dict) -> dict:
     return narrowed_item
 
 
+def parse_artist(artist_item: dict, verbose=False) -> dict:
+    narrowed_item = {
+        'name': artist_item['name'],
+        'id': artist_item['id'],
+    }
+    if verbose:
+        narrowed_item['genres'] = artist_item.get('genres')
+
+    return narrowed_item
+
+
+def parse_playlist(playlist_item: dict, verbose=False) -> dict:
+    narrowed_item = {
+        'name': playlist_item['name'],
+        'id': playlist_item['id'],
+    }
+    if verbose:
+        for k in ['description', 'owner']:
+            narrowed_item[k] = playlist_item.get(k)
+        tracks = []
+        for t in playlist_item['tracks']['items']:
+            tracks.append(parse_track(t['track']))
+        narrowed_item['tracks'] = tracks
+
+    return narrowed_item
+
+
+def parse_album(album_item: dict, verbose=False) -> dict:
+    narrowed_item = {
+        'name': album_item['name'],
+        'id': album_item['id'],
+    }
+
+    if verbose:
+        tracks = []
+        for t in album_item['tracks']['items']:
+            tracks.append(parse_track(t))
+        narrowed_item["tracks"] = tracks
+
+        for k in ['total_tracks', 'release_date', 'genres']:
+            narrowed_item[k] = album_item.get(k)
+
+    return narrowed_item
+
+
 def parse_search_results(results: Dict, qtype: str):
-    _results = []
-    if qtype == 'track':
-        for idx, item in enumerate(results['tracks']['items']):
-            _results.append(parse_track(item))
-            # print(item['name'], item.keys())
-        return _results
+    _results = defaultdict(list)
+
+    for q in qtype.split(","):
+        match q:
+            case "track":
+                for idx, item in enumerate(results['tracks']['items']):
+                    if not item: continue
+                    _results['tracks'].append(parse_track(item))
+            case "artist":
+                for idx, item in enumerate(results['artists']['items']):
+                    if not item: continue
+                    _results['artists'].append(parse_artist(item))
+            case "playlist":
+                for idx, item in enumerate(results['playlists']['items']):
+                    if not item: continue
+                    _results['playlists'].append(parse_playlist(item))
+            case "album":
+                for idx, item in enumerate(results['albums']['items']):
+                    if not item: continue
+                    _results['albums'].append(parse_album(item))
+            case _:
+                raise ValueError(f"uknown qtype {qtype}")
+
+    return dict(_results)
+
 
 def build_search_query(base_query: str,
                        artist: Optional[str] = None,
@@ -117,4 +179,3 @@ def validate(func: Callable[..., T]) -> Callable[..., T]:
         return func(self, *args, **kwargs)
 
     return wrapper
-
