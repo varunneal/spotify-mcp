@@ -1,12 +1,13 @@
 # spotify-mcp MCP server
 
-MCP project to connect Claude with Spotify. Built on top of @spotipy-dev's API. 
+MCP project to connect Claude with Spotify. Built on top of [spotipy-dev's API](https://github.com/spotipy-dev/spotipy/tree/2.24.0). 
 
 ## Quickstart
 
 ### Create Spotify API access
 Create an account on [developer.spotify.com](https://developer.spotify.com/). Navigate to [the dashboard](https://developer.spotify.com/dashboard). 
 Create an app with redirect_uri as http://localhost:8888. (You can choose any port you want but you must use http and localhost). 
+I set "APIs used" to "Web Playback SDK". 
 
 
 ## Set up spotify-mcp locally
