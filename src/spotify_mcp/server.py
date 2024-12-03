@@ -52,7 +52,6 @@ logger = setup_logger()
 server = Server("spotify-mcp")
 spotify_client = spotify_api.Client(logger)
 
-
 class ToolModel(BaseModel):
     @classmethod
     def as_tool(cls):
@@ -62,34 +61,26 @@ class ToolModel(BaseModel):
             inputSchema=cls.model_json_schema()
         )
 
-
-
-class GetCurrentTrack(ToolModel):
-    """Get information about user's current track."""
-    pass
-
-
-class StartPlayback(ToolModel):
-    """Controls song playback. If track_id is omitted, resumes current playback."""
-    track_id: str | None = None
-
-
-class PausePlayback(ToolModel):
-    """Pauses the current playback."""
-    pass
+class Playback(ToolModel):
+    """Manages the current playback with the following actions:
+    - get: Get information about user's current track.
+    - start: Starts of resumes playback.
+    - pause: Pauses current playback.
+    - skip: Skips current track.
+    """
+    action: str = Field(description="Action to perform: 'get', 'start', 'pause' or 'skip'.")
+    track_id: Optional[str] = Field(default=None, description="Specifies track to play for 'start' action. If omitted, resumes current playback.")
+    num_skips: Optional[int] = Field(default=1, description="Number of tracks to skip for `skip` action.")
 
 
 class Queue(ToolModel):
-    """Manage the playback queue - add tracks, view queue, or skip to next track."""
-    action: str = Field(description="Action to perform: 'add_track', 'get', or 'next'")
-    track_id: Optional[str] = Field(default=None, description="Track ID to add to queue (required for add_track action)")
-    num_skips: Optional[int] = Field(default=1, description="Number of tracks in queue to skip.")
+    """Manage the playback queue - get the queue or add tracks."""
+    action: str = Field(description="Action to perform: 'add' or 'get'.")
+    track_id: Optional[str] = Field(default=None, description="Track ID to add to queue (required for add action)")
 
 
 class GetInfo(ToolModel):
-    """
-    Get detailed information about a Spotify item (track, album, artist, or playlist).
-    """
+    """Get detailed information about a Spotify item (track, album, artist, or playlist)."""
     item_id: str = Field(description="ID of the item to get information about")
     qtype: str = Field(default="track", description="Type of item: 'track', 'album', 'artist', or 'playlist'. "
                                                     "If 'playlist' or 'album', returns its tracks. If 'artist',"
@@ -103,15 +94,12 @@ class Search(ToolModel):
     limit: Optional[int] = Field(default=10, description="Maximum number of items to return")
 
 
-
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
     """List available tools."""
     logger.info("Listing available tools")
     tools = [
-        GetCurrentTrack.as_tool(),
-        StartPlayback.as_tool(),
-        PausePlayback.as_tool(),
+        Playback.as_tool(),
         Search.as_tool(),
         Queue.as_tool(),
         GetInfo.as_tool(),
@@ -130,38 +118,47 @@ async def handle_call_tool(
 
     try:
         match name[7:]:
-            case "GetCurrentTrack":
-                logger.info("Attempting to get current track")
-                curr_track = spotify_client.get_current_track()
-                if curr_track:
-                    logger.info(f"Current track retrieved: {curr_track.get('name', 'Unknown')}")
-                    return [types.TextContent(
-                        type="text",
-                        text=json.dumps(curr_track, indent=2)
-                    )]
-                logger.info("No track currently playing")
-                return [types.TextContent(
-                    type="text",
-                    text="No track playing."
-                )]
-
-            case "StartPlayback":
-                logger.info(f"Starting playback with arguments: {arguments}")
-                spotify_client.start_playback(**arguments)
-                logger.info("Playback started successfully")
-                return [types.TextContent(
-                    type="text",
-                    text="Playback starting with no errors."
-                )]
-
-            case "PausePlayback":
-                logger.info("Attempting to pause playback")
-                spotify_client.pause_playback()
-                logger.info("Playback paused successfully")
-                return [types.TextContent(
-                    type="text",
-                    text="Playback paused successfully."
-                )]
+            case "Playback":
+                action = arguments.get("action")
+                match action:
+                    case "get":
+                        logger.info("Attempting to get current track")
+                        curr_track = spotify_client.get_current_track()
+                        if curr_track:
+                            logger.info(f"Current track retrieved: {curr_track.get('name', 'Unknown')}")
+                            return [types.TextContent(
+                                type="text",
+                                text=json.dumps(curr_track, indent=2)
+                            )]
+                        logger.info("No track currently playing")
+                        return [types.TextContent(
+                            type="text",
+                            text="No track playing."
+                        )]
+                    case "start":
+                        logger.info(f"Starting playback with arguments: {arguments}")
+                        spotify_client.start_playback(track_id=arguments.get("track_id"))
+                        logger.info("Playback started successfully")
+                        return [types.TextContent(
+                            type="text",
+                            text="Playback starting with no errors."
+                        )]
+                    case "pause":
+                        logger.info("Attempting to pause playback")
+                        spotify_client.pause_playback()
+                        logger.info("Playback paused successfully")
+                        return [types.TextContent(
+                            type="text",
+                            text="Playback paused successfully."
+                        )]
+                    case "skip":
+                        num_skips = int(arguments.get("num_skips", 1))
+                        logger.info(f"Skipping {num_skips} tracks.")
+                        spotify_client.skip_track(n=num_skips)
+                        return [types.TextContent(
+                            type="text",
+                            text="Skipped to next track."
+                        )]
 
             case "Search":
                 logger.info(f"Performing search with arguments: {arguments}")
@@ -181,12 +178,13 @@ async def handle_call_tool(
                 action = arguments.get("action")
 
                 match action:
-                    case "add_track":
+                    case "add":
                         track_id = arguments.get("track_id")
                         if not track_id:
+                            logger.error("track_id is required for add to queue.")
                             return [types.TextContent(
                                 type="text",
-                                text="track_id is required for add_track action"
+                                text="track_id is required for add action"
                             )]
                         spotify_client.add_to_queue(track_id)
                         return [types.TextContent(
@@ -201,18 +199,11 @@ async def handle_call_tool(
                             text=json.dumps(queue, indent=2)
                         )]
 
-                    case "skip":
-                        num_skips = arguments.get("skip", 1)
-                        spotify_client.skip_track(n=num_skips)
-                        return [types.TextContent(
-                            type="text",
-                            text="Skipped to next track."
-                        )]
 
                     case _:
                         return [types.TextContent(
                             type="text",
-                            text=f"Unknown queue action: {action}. Supported actions are: add_track, get, next"
+                            text=f"Unknown queue action: {action}. Supported actions are: add, remove, and get."
                         )]
 
             case "GetInfo":
@@ -225,8 +216,6 @@ async def handle_call_tool(
                     type="text",
                     text=json.dumps(item_info, indent=2)
                 )]
-
-
 
             case _:
                 error_msg = f"Unknown tool: {name}"

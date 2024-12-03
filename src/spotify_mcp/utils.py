@@ -8,7 +8,9 @@ from urllib.parse import quote
 T = TypeVar('T')
 
 
-def parse_track(track_item: dict, detailed=False) -> dict:
+def parse_track(track_item: dict, detailed=False) -> Optional[dict]:
+    if not track_item:
+        return None
     narrowed_item = {
         'name': track_item['name'],
         'id': track_item['id'],
@@ -37,7 +39,9 @@ def parse_track(track_item: dict, detailed=False) -> dict:
     return narrowed_item
 
 
-def parse_artist(artist_item: dict, detailed=False) -> dict:
+def parse_artist(artist_item: dict, detailed=False) -> Optional[dict]:
+    if not artist_item:
+        return None
     narrowed_item = {
         'name': artist_item['name'],
         'id': artist_item['id'],
@@ -48,7 +52,9 @@ def parse_artist(artist_item: dict, detailed=False) -> dict:
     return narrowed_item
 
 
-def parse_playlist(playlist_item: dict, detailed=False) -> dict:
+def parse_playlist(playlist_item: dict, detailed=False) -> Optional[dict]:
+    if not playlist_item:
+        return None
     narrowed_item = {
         'name': playlist_item['name'],
         'id': playlist_item['id'],

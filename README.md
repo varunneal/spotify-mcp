@@ -1,10 +1,9 @@
 # spotify-mcp MCP server
 
 MCP project to connect Claude with Spotify. Built on top of [spotipy-dev's API](https://github.com/spotipy-dev/spotipy/tree/2.24.0).
-A standalone repo for this project can be found at [github.com/varunneal/spotify-mcp](https://github.com/varunneal/spotify-mcp).
 
 ## Features
-- Start and pause playback
+- Start, pause, and skip playback
 - Search for tracks/albums/artists/playlists
 - Get info about a track/album/artist/playlist
 - Manage the Spotify queue
@@ -42,14 +41,14 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/servers/src/spotify",
+        "/path/to/spotify_mcp",
         "run",
         "spotify-mcp"
       ],
       "env": {
-        "CLIENT_ID": YOUR_CLIENT_ID,
-        "CLIENT_SECRET": YOUR_CLIENT_SECRET,
-        "REDIRECT_URI": "http://localhost:8888"
+        "SPOTIFY_CLIENT_ID": YOUR_CLIENT_ID,
+        "SPOTIFY_CLIENT_SECRET": YOUR_CLIENT_SECRET,
+        "SPOTIFY_REDIRECT_URI": "http://localhost:8888"
       }
     }
   ```
@@ -62,7 +61,7 @@ from the Spotify API. Most new features will be relatively minor or for the heal
 - adding API support for managing playlists.
 - adding API support for paginated search results/playlists/albums.
 
-## Development
+## Deployment
 
 (todo)
 

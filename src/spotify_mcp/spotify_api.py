@@ -108,6 +108,9 @@ class Client:
                 return None
 
             track_info = utils.parse_track(current['item'])
+            if 'is_playing' in current:
+                track_info['is_playing'] = current['is_playing']
+
             self.logger.info(
                 f"Current track: {track_info.get('name', 'Unknown')} by {track_info.get('artist', 'Unknown')}")
             return track_info
@@ -122,9 +125,12 @@ class Client:
         - track_id: ID of track to play, or None.
         """
         try:
-            if not track_id and self.is_track_playing():
-                self.logger.info("No track_id ID provided and playback already active.")
-                return
+            if not track_id:
+                if self.is_track_playing():
+                    self.logger.info("No track_id provided and playback already active.")
+                    return
+                if not self.get_current_track():
+                    raise ValueError("No track_id provided and no current playback to resume.")
 
             uris = [f'spotify:track:{track_id}'] if track_id else None
             device_id = device.get('id') if device else None
@@ -151,9 +157,17 @@ class Client:
         """
         self.sp.add_to_queue(track_id, device.get('id') if device else None)
 
-    def get_queue(self):
+    @utils.validate
+    def get_queue(self, device=None):
         """Returns the current queue of tracks."""
-        return self.sp.queue()
+        queue_info = self.sp.queue()
+        self.logger.info(f"currently playing keys {queue_info['currently_playing'].keys()}")
+
+        queue_info['currently_playing'] = self.get_current_track()
+
+        queue_info['queue'] = [utils.parse_track(track) for track in queue_info.pop('queue')]
+
+        return queue_info
 
     def get_liked_songs(self):
         # todo
@@ -198,6 +212,7 @@ class Client:
         self.auth_manager.validate_token(self.cache_handler.get_cached_token())
 
     def skip_track(self, n=1):
+        # todo: Better error handling
         for _ in range(n):
             self.sp.next_track()
 
