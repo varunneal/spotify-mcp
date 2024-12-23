@@ -27,7 +27,7 @@ This project is not yet set up for ephemeral environments (e.g. `uvx` usage).
 Run this project locally by cloning this repo
 
 ```bash
-git clone https://github.com/modelcontextprotocol/servers.git
+git clone https://github.com/varunneal/spotify-mcp.git
 ```
 
 Add this tool as a mcp server.
