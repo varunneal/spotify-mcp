@@ -12,8 +12,13 @@ MCP project to connect Claude with Spotify. Built on top of [spotipy-dev's API](
 
 Make sure to turn on audio
 
-https://github.com/user-attachments/assets/20ee1f92-f3e3-4dfa-b945-ca57bc1e0894
-
+<details>
+  <summary>
+    Video
+  </summary>
+  https://github.com/user-attachments/assets/20ee1f92-f3e3-4dfa-b945-ca57bc1e0894
+  </summary>
+</details>
 
 ## Configuration
 
@@ -52,6 +57,13 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
       }
     }
   ```
+
+### Troubleshooting
+Please open an issue if you can't get this MCP working. Here are some tips:
+1. Make sure `uv` is updated. I recommend version `>=0.54`.
+2. Make sure claude has execution permisisons for the project: `chmod -R 755`.
+3. Ensure you have Spotify premium (needed for running developer API). 
+
 
 ## TODO
 
