@@ -23,7 +23,6 @@ SCOPES = ["user-read-currently-playing", "user-read-playback-state", "user-read-
           "user-library-modify", "user-library-read",  # library
           ]
 
-
 class Client:
     sp: spotipy.Spotify
     auth_manager: SpotifyOAuth
@@ -34,7 +33,9 @@ class Client:
         """Initialize Spotify client with necessary permissions"""
         self.logger = logger
 
-        scope = "user-library-read,user-read-playback-state,user-modify-playback-state,user-read-currently-playing"
+        # Use all defined scopes
+        scope = ",".join(SCOPES)
+        self.logger.info(f"Initializing Spotify client with scopes: {scope}")
 
         try:
             auth_manager = SpotifyOAuth(
@@ -46,6 +47,7 @@ class Client:
             self.sp = spotipy.Spotify(auth_manager=auth_manager)
             self.auth_manager = auth_manager
             self.cache_handler = auth_manager.cache_handler
+            self.logger.info("Successfully initialized Spotify client")
         except Exception as e:
             self.logger.error(f"Failed to initialize Spotify client: {str(e)}", exc_info=True)
             raise
@@ -260,8 +262,13 @@ class Client:
     def get_playlist(self, playlist_id: str) -> Dict[str, Any]:
         """Get a playlist's details"""
         try:
+            self.logger.info(f"Getting playlist with ID: {playlist_id}")
             playlist = self.sp.playlist(playlist_id)
             playlist_info = utils.parse_playlist(playlist, detailed=True)
+            if playlist_info:
+                self.logger.info(f"Successfully retrieved playlist: {playlist_info.get('name', 'Unknown')}")
+            else:
+                self.logger.warning(f"Retrieved empty playlist info for ID: {playlist_id}")
             return playlist_info if playlist_info else {}
         except Exception as e:
             self.logger.error(f"Error getting playlist: {str(e)}", exc_info=True)
@@ -271,12 +278,14 @@ class Client:
                               description: Optional[str] = None, public: Optional[bool] = None) -> None:
         """Update a playlist's details"""
         try:
+            self.logger.info(f"Updating playlist {playlist_id} with name: {name}, description: {description}, public: {public}")
             self.sp.playlist_change_details(
                 playlist_id,
                 name=name,
                 description=description,
                 public=public
             )
+            self.logger.info(f"Successfully updated playlist details for ID: {playlist_id}")
         except Exception as e:
             self.logger.error(f"Error updating playlist: {str(e)}", exc_info=True)
             raise
@@ -288,17 +297,23 @@ class Client:
                             snapshot_id: Optional[str] = None) -> Dict[str, str]:
         """Update a playlist's items"""
         try:
+            self.logger.info(f"Updating playlist {playlist_id} items. URIs count: {len(uris)}")
+            self.logger.info(f"Range params - start: {range_start}, insert_before: {insert_before}, length: {range_length}")
+
             result = self.sp.playlist_replace_items(playlist_id, uris)
             if range_start is not None and insert_before is not None:
-                # If range parameters provided, reorder items
+                self.logger.info(f"Reordering items in playlist {playlist_id}")
                 self.sp.playlist_reorder_items(
                     playlist_id,
                     range_start=range_start,
                     insert_before=insert_before,
-                    range_length=range_length or 1,  # Default to 1 if None
+                    range_length=range_length or 1,
                     snapshot_id=snapshot_id
                 )
-            return result if result else {"snapshot_id": ""}
+
+            snapshot_id = result["snapshot_id"] if result and isinstance(result, dict) else ""
+            self.logger.info(f"Successfully updated playlist items. Snapshot ID: {snapshot_id}")
+            return {"snapshot_id": snapshot_id}
         except Exception as e:
             self.logger.error(f"Error updating playlist items: {str(e)}", exc_info=True)
             raise
@@ -307,8 +322,11 @@ class Client:
                          position: Optional[int] = None) -> Dict[str, str]:
         """Add items to a playlist"""
         try:
+            self.logger.info(f"Adding {len(uris)} items to playlist {playlist_id} at position: {position}")
             result = self.sp.playlist_add_items(playlist_id, uris, position=position)
-            return result if result else {"snapshot_id": ""}
+            snapshot_id = result["snapshot_id"] if result and isinstance(result, dict) else ""
+            self.logger.info(f"Successfully added items to playlist. Snapshot ID: {snapshot_id}")
+            return {"snapshot_id": snapshot_id}
         except Exception as e:
             self.logger.error(f"Error adding items to playlist: {str(e)}", exc_info=True)
             raise
@@ -317,12 +335,15 @@ class Client:
                             snapshot_id: Optional[str] = None) -> Dict[str, str]:
         """Remove items from a playlist"""
         try:
+            self.logger.info(f"Removing {len(uris)} items from playlist {playlist_id}")
             result = self.sp.playlist_remove_all_occurrences_of_items(
                 playlist_id,
                 uris,
                 snapshot_id=snapshot_id
             )
-            return result if result else {"snapshot_id": ""}
+            snapshot_id = result["snapshot_id"] if result and isinstance(result, dict) else ""
+            self.logger.info(f"Successfully removed items from playlist. Snapshot ID: {snapshot_id}")
+            return {"snapshot_id": snapshot_id}
         except Exception as e:
             self.logger.error(f"Error removing items from playlist: {str(e)}", exc_info=True)
             raise
@@ -331,12 +352,16 @@ class Client:
                           limit: int = 20, offset: int = 0) -> Dict[str, Any]:
         """Get a user's playlists"""
         try:
+            self.logger.info(f"Getting playlists for user: {user_id if user_id else 'current user'}")
+            self.logger.info(f"Limit: {limit}, Offset: {offset}")
+
             if user_id:
                 playlists = self.sp.user_playlists(user_id, limit=limit, offset=offset)
             else:
                 playlists = self.sp.current_user_playlists(limit=limit, offset=offset)
 
             if not playlists:
+                self.logger.info("No playlists found")
                 return {
                     'items': [],
                     'total': 0,
@@ -347,7 +372,7 @@ class Client:
                 }
 
             # Parse the playlists
-            return {
+            result = {
                 'items': [playlist_info for playlist in playlists.get('items', [])
                          if (playlist_info := utils.parse_playlist(playlist)) is not None],
                 'total': playlists.get('total', 0),
@@ -356,6 +381,9 @@ class Client:
                 'next': playlists.get('next'),
                 'previous': playlists.get('previous')
             }
+
+            self.logger.info(f"Successfully retrieved {len(result['items'])} playlists")
+            return result
         except Exception as e:
             self.logger.error(f"Error getting user playlists: {str(e)}", exc_info=True)
             raise
@@ -364,6 +392,9 @@ class Client:
                        public: bool = False) -> Dict[str, Any]:
         """Create a new playlist"""
         try:
+            self.logger.info(f"Creating playlist '{name}' for user {user_id}")
+            self.logger.info(f"Description: {description}, Public: {public}")
+
             playlist = self.sp.user_playlist_create(
                 user_id,
                 name,
@@ -371,6 +402,12 @@ class Client:
                 description=description
             )
             playlist_info = utils.parse_playlist(playlist, detailed=True)
+
+            if playlist_info:
+                self.logger.info(f"Successfully created playlist. ID: {playlist_info.get('id', 'Unknown')}")
+            else:
+                self.logger.warning("Created playlist but received empty playlist info")
+
             return playlist_info if playlist_info else {}
         except Exception as e:
             self.logger.error(f"Error creating playlist: {str(e)}", exc_info=True)
@@ -379,7 +416,14 @@ class Client:
     def get_playlist_cover_image(self, playlist_id: str) -> List[Dict[str, Any]]:
         """Get a playlist's cover image"""
         try:
+            self.logger.info(f"Getting cover image for playlist: {playlist_id}")
             images = self.sp.playlist_cover_image(playlist_id)
+
+            if images:
+                self.logger.info(f"Successfully retrieved {len(images)} cover images")
+            else:
+                self.logger.info("No cover images found")
+
             return images if images else []
         except Exception as e:
             self.logger.error(f"Error getting playlist cover: {str(e)}", exc_info=True)
@@ -388,7 +432,11 @@ class Client:
     def upload_playlist_cover_image(self, playlist_id: str, image_data: str) -> None:
         """Upload a custom playlist cover image"""
         try:
+            self.logger.info(f"Uploading cover image for playlist: {playlist_id}")
+            self.logger.info(f"Image data length: {len(image_data)} characters")
+
             self.sp.playlist_upload_cover_image(playlist_id, image_data)
+            self.logger.info("Successfully uploaded playlist cover image")
         except Exception as e:
             self.logger.error(f"Error uploading playlist cover: {str(e)}", exc_info=True)
             raise
