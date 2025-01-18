@@ -1,14 +1,12 @@
 from collections import defaultdict
-from typing import Optional, Dict
 import functools
-from typing import Callable, TypeVar
-from typing import Optional, Dict
+from typing import Callable, TypeVar, Optional, Dict, List, Any
 from urllib.parse import quote
 
 T = TypeVar('T')
 
 
-def parse_track(track_item: dict, detailed=False) -> Optional[dict]:
+def parse_track(track_item: Optional[Dict[str, Any]], detailed: bool = False) -> Optional[Dict[str, Any]]:
     if not track_item:
         return None
     narrowed_item = {
@@ -39,7 +37,7 @@ def parse_track(track_item: dict, detailed=False) -> Optional[dict]:
     return narrowed_item
 
 
-def parse_artist(artist_item: dict, detailed=False) -> Optional[dict]:
+def parse_artist(artist_item: Optional[Dict[str, Any]], detailed: bool = False) -> Optional[Dict[str, Any]]:
     if not artist_item:
         return None
     narrowed_item = {
@@ -52,7 +50,7 @@ def parse_artist(artist_item: dict, detailed=False) -> Optional[dict]:
     return narrowed_item
 
 
-def parse_playlist(playlist_item: dict, detailed=False) -> Optional[dict]:
+def parse_playlist(playlist_item: Optional[Dict[str, Any]], detailed: bool = False) -> Optional[Dict[str, Any]]:
     if not playlist_item:
         return None
     narrowed_item = {
@@ -70,7 +68,9 @@ def parse_playlist(playlist_item: dict, detailed=False) -> Optional[dict]:
     return narrowed_item
 
 
-def parse_album(album_item: dict, detailed=False) -> dict:
+def parse_album(album_item: Optional[Dict[str, Any]], detailed: bool = False) -> Optional[Dict[str, Any]]:
+    if not album_item:
+        return None
     narrowed_item = {
         'name': album_item['name'],
         'id': album_item['id'],
@@ -96,7 +96,9 @@ def parse_album(album_item: dict, detailed=False) -> dict:
     return narrowed_item
 
 
-def parse_search_results(results: Dict, qtype: str):
+def parse_search_results(results: Optional[Dict[str, Any]], qtype: str) -> Dict[str, List[Dict[str, Any]]]:
+    if not results:
+        return {}
     _results = defaultdict(list)
 
     for q in qtype.split(","):
