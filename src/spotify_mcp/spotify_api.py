@@ -119,24 +119,36 @@ class Client:
             raise
 
     @utils.validate
-    def start_playback(self, track_id=None, device=None):
+    def start_playback(self, spotify_uri=None, device=None):
         """
-        Starts track playback. If track_id is omitted, resumes current playback.
-        - track_id: ID of track to play, or None.
+        Starts spotify playback of uri. If spotify_uri is omitted, resumes current playback.
+        - spotify_uri: ID of resource to play, or None. Typically looks like 'spotify:track:xxxxxx' or 'spotify:album:xxxxxx'.
         """
         try:
-            if not track_id:
+            self.logger.info(f"Starting playback for spotify_uri: {spotify_uri} on {device}")
+            if not spotify_uri:
                 if self.is_track_playing():
                     self.logger.info("No track_id provided and playback already active.")
                     return
                 if not self.get_current_track():
                     raise ValueError("No track_id provided and no current playback to resume.")
 
-            uris = [f'spotify:track:{track_id}'] if track_id else None
+            if spotify_uri is not None:
+                if spotify_uri.startswith('spotify:track:'):
+                    uris = [spotify_uri]
+                    context_uri = None
+                else:
+                    uris = None
+                    context_uri = spotify_uri
+            else:
+                uris = None
+                context_uri = None
+
             device_id = device.get('id') if device else None
 
-            result = self.sp.start_playback(uris=uris, device_id=device_id)
-            self.logger.info(f"Playback started successfully{' for track_id: ' + track_id if track_id else ''}")
+            self.logger.info(f"Starting playback of on {device}: context_uri={context_uri}, uris={uris}")
+            result = self.sp.start_playback(uris=uris, context_uri=context_uri, device_id=device_id)
+            self.logger.info(f"Playback result: {result}")
             return result
         except Exception as e:
             self.logger.error(f"Error starting playback: {str(e)}", exc_info=True)

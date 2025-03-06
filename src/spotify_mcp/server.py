@@ -64,12 +64,12 @@ class ToolModel(BaseModel):
 class Playback(ToolModel):
     """Manages the current playback with the following actions:
     - get: Get information about user's current track.
-    - start: Starts of resumes playback.
+    - start: Starts playing new item or resumes current playback if called with no uri.
     - pause: Pauses current playback.
     - skip: Skips current track.
     """
     action: str = Field(description="Action to perform: 'get', 'start', 'pause' or 'skip'.")
-    track_id: Optional[str] = Field(default=None, description="Specifies track to play for 'start' action. If omitted, resumes current playback.")
+    spotify_uri: Optional[str] = Field(default=None, description="Spotify uri of item to play for 'start' action. If omitted, resumes current playback.")
     num_skips: Optional[int] = Field(default=1, description="Number of tracks to skip for `skip` action.")
 
 
@@ -137,7 +137,7 @@ async def handle_call_tool(
                         )]
                     case "start":
                         logger.info(f"Starting playback with arguments: {arguments}")
-                        spotify_client.start_playback(track_id=arguments.get("track_id"))
+                        spotify_client.start_playback(spotify_uri=arguments.get("spotify_uri"))
                         logger.info("Playback started successfully")
                         return [types.TextContent(
                             type="text",
