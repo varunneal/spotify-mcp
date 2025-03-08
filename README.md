@@ -1,5 +1,7 @@
 # spotify-mcp MCP server
 
+[![smithery badge](https://smithery.ai/badge/@varunneal/spotify-mcp)](https://smithery.ai/server/@varunneal/spotify-mcp)
+
 MCP project to connect Claude with Spotify. Built on top of [spotipy-dev's API](https://github.com/spotipy-dev/spotipy/tree/2.24.0).
 
 ## Features
@@ -76,6 +78,14 @@ from the Spotify API. Most new features will be relatively minor or for the heal
 ## Deployment
 
 (todo)
+
+### Installing via Smithery
+
+To install spotify-mcp for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@varunneal/spotify-mcp):
+
+```bash
+npx -y @smithery/cli install @varunneal/spotify-mcp --client claude
+```
 
 ### Building and Publishing
 
