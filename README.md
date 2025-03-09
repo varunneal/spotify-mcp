@@ -65,7 +65,8 @@ Please open an issue if you can't get this MCP working. Here are some tips:
 3. Ensure you have Spotify premium (needed for running developer API). 
 
 This MCP will emit logs to std err (as specified in the MCP) spec. On Mac the Claude Desktop app should emit these logs
-to `~/Library/Logs/Claude`. On other platforms [you can find logs here.](https://modelcontextprotocol.io/quickstart/user#getting-logs-from-claude-for-desktop)
+to `~/Library/Logs/Claude`. 
+On other platforms [you can find logs here](https://modelcontextprotocol.io/quickstart/user#getting-logs-from-claude-for-desktop).
 
 ## TODO
 
