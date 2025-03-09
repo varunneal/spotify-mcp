@@ -40,11 +40,17 @@ class Client:
 
             self.auth_manager: SpotifyOAuth = self.sp.auth_manager
             self.cache_handler: CacheFileHandler = self.auth_manager.cache_handler
+            self.username = self.get_username()
         except Exception as e:
-            self.logger.error(f"Failed to initialize Spotify client: {str(e)}", exc_info=True)
+            self.logger.error(f"Failed to initialize Spotify client: {str(e)}")
             raise
 
-    def search(self, query: str, qtype: str = 'track', limit=10):
+    @utils.validate
+    def get_username(self, device=None):
+        return self.sp.current_user()['display_name']
+
+    @utils.validate
+    def search(self, query: str, qtype: str = 'track', limit=10, device=None):
         """
         Searches based of query term.
         - query: query term
@@ -53,27 +59,25 @@ class Client:
         - limit: max # items to return
         """
         results = self.sp.search(q=query, limit=limit, type=qtype)
-        return utils.parse_search_results(results, qtype)
-
+        return utils.parse_search_results(results, qtype, self.username)
 
     def recommendations(self, artists: Optional[List] = None, tracks: Optional[List] = None, limit=20):
+        # doesnt work
         recs = self.sp.recommendations(seed_artists=artists, seed_tracks=tracks, limit=limit)
         return recs
 
-
-    def get_info(self, item_id: str, qtype: str = 'track') -> dict:
+    def get_info(self, item_uri: str) -> dict:
         """
         Returns more info about item.
-        - item_id: id.
-        - qtype: Either 'track', 'album', 'artist', or 'playlist'.
+        - item_uri: uri. Looks like 'spotify:track:xxxxxx', 'spotify:album:xxxxxx', etc.
         """
+        _, qtype, item_id = item_uri.split(":")
         match qtype:
             case 'track':
                 return utils.parse_track(self.sp.track(item_id), detailed=True)
             case 'album':
                 album_info = utils.parse_album(self.sp.album(item_id), detailed=True)
                 return album_info
-
             case 'artist':
                 artist_info = utils.parse_artist(self.sp.artist(item_id), detailed=True)
                 albums = self.sp.artist_albums(item_id)
@@ -89,11 +93,12 @@ class Client:
                 return artist_info
             case 'playlist':
                 playlist = self.sp.playlist(item_id)
-                playlist_info = utils.parse_playlist(playlist, detailed=True)
+                self.logger.info(f"playlist info is {playlist}")
+                playlist_info = utils.parse_playlist(playlist, self.username, detailed=True)
 
                 return playlist_info
 
-        raise ValueError(f"uknown qtype {qtype}")
+        raise ValueError(f"Unknown qtype {qtype}")
 
     def get_current_track(self) -> Optional[Dict]:
         """Get information about the currently playing track"""
@@ -115,7 +120,7 @@ class Client:
                 f"Current track: {track_info.get('name', 'Unknown')} by {track_info.get('artist', 'Unknown')}")
             return track_info
         except Exception as e:
-            self.logger.error("Error getting current track info", exc_info=True)
+            self.logger.error("Error getting current track info")
             raise
 
     @utils.validate
@@ -151,7 +156,7 @@ class Client:
             self.logger.info(f"Playback result: {result}")
             return result
         except Exception as e:
-            self.logger.error(f"Error starting playback: {str(e)}", exc_info=True)
+            self.logger.error(f"Error starting playback: {str(e)}")
             raise
 
     @utils.validate
@@ -217,7 +222,7 @@ class Client:
             self.logger.info(f"Auth check result: {'valid' if not result else 'expired'}")
             return result
         except Exception as e:
-            self.logger.error(f"Error checking auth status: {str(e)}", exc_info=True)
+            self.logger.error(f"Error checking auth status: {str(e)}")
             raise
 
     def auth_refresh(self):

@@ -64,6 +64,8 @@ Please open an issue if you can't get this MCP working. Here are some tips:
 2. Make sure claude has execution permisisons for the project: `chmod -R 755`.
 3. Ensure you have Spotify premium (needed for running developer API). 
 
+This MCP will emit logs to std err (as specified in the MCP) spec. On Mac the Claude Desktop app should emit these logs
+to `~/Library/Logs/Claude`. On other platforms [you can find logs here.](https://modelcontextprotocol.io/quickstart/user#getting-logs-from-claude-for-desktop)
 
 ## TODO
 
@@ -72,6 +74,8 @@ from the Spotify API. Most new features will be relatively minor or for the heal
 - tests.
 - adding API support for managing playlists.
 - adding API support for paginated search results/playlists/albums.
+
+PRs appreciated! 
 
 ## Deployment
 
