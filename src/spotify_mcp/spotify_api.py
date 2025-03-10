@@ -40,14 +40,15 @@ class Client:
 
             self.auth_manager: SpotifyOAuth = self.sp.auth_manager
             self.cache_handler: CacheFileHandler = self.auth_manager.cache_handler
-            self.username = self.get_username()
         except Exception as e:
             self.logger.error(f"Failed to initialize Spotify client: {str(e)}")
             raise
 
+        self.username = None
+
     @utils.validate
-    def get_username(self, device=None):
-        return self.sp.current_user()['display_name']
+    def set_username(self, device=None):
+        self.username = self.sp.current_user()['display_name']
 
     @utils.validate
     def search(self, query: str, qtype: str = 'track', limit=10, device=None):
@@ -58,7 +59,11 @@ class Client:
                  If multiple types are desired, pass in a comma separated string; e.g. 'track,album'
         - limit: max # items to return
         """
+        if self.username is None:
+            self.set_username()
         results = self.sp.search(q=query, limit=limit, type=qtype)
+        if not results:
+            raise ValueError("No search results found.")
         return utils.parse_search_results(results, qtype, self.username)
 
     def recommendations(self, artists: Optional[List] = None, tracks: Optional[List] = None, limit=20):
@@ -92,6 +97,8 @@ class Client:
 
                 return artist_info
             case 'playlist':
+                if self.username is None:
+                    self.set_username()
                 playlist = self.sp.playlist(item_id)
                 self.logger.info(f"playlist info is {playlist}")
                 playlist_info = utils.parse_playlist(playlist, self.username, detailed=True)
@@ -120,7 +127,7 @@ class Client:
                 f"Current track: {track_info.get('name', 'Unknown')} by {track_info.get('artist', 'Unknown')}")
             return track_info
         except Exception as e:
-            self.logger.error("Error getting current track info")
+            self.logger.error("Error getting current track info.")
             raise
 
     @utils.validate
@@ -156,7 +163,7 @@ class Client:
             self.logger.info(f"Playback result: {result}")
             return result
         except Exception as e:
-            self.logger.error(f"Error starting playback: {str(e)}")
+            self.logger.error(f"Error starting playback: {str(e)}.")
             raise
 
     @utils.validate
@@ -178,8 +185,6 @@ class Client:
     def get_queue(self, device=None):
         """Returns the current queue of tracks."""
         queue_info = self.sp.queue()
-        self.logger.info(f"currently playing keys {queue_info['currently_playing'].keys()}")
-
         queue_info['currently_playing'] = self.get_current_track()
 
         queue_info['queue'] = [utils.parse_track(track) for track in queue_info.pop('queue')]
@@ -210,6 +215,8 @@ class Client:
 
     def _get_candidate_device(self):
         devices = self.get_devices()
+        if not devices:
+            raise ConnectionError("No active device. Is Spotify open?")
         for device in devices:
             if device.get('is_active'):
                 return device
