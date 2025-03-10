@@ -1,5 +1,7 @@
 # spotify-mcp MCP server
 
+[![smithery badge](https://smithery.ai/badge/@varunneal/spotify)](https://smithery.ai/server/@varunneal/spotify)
+
 MCP project to connect Claude with Spotify. Built on top of [spotipy-dev's API](https://github.com/spotipy-dev/spotipy/tree/2.24.0).
 
 ## Features
@@ -28,6 +30,16 @@ Create an app with redirect_uri as http://localhost:8888. (You can choose any po
 I set "APIs used" to "Web Playback SDK".
 
 ### Run this project locally
+
+### Installing via Smithery
+
+To install Spotify Connector for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@varunneal/spotify):
+
+```bash
+npx -y @smithery/cli install @varunneal/spotify --client claude
+```
+
+### Manual Installation
 This project is not yet set up for ephemeral environments (e.g. `uvx` usage). 
 Run this project locally by cloning this repo
 
