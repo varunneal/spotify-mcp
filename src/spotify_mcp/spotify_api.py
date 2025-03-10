@@ -218,12 +218,17 @@ class Client:
 
     def auth_ok(self) -> bool:
         try:
-            result = self.auth_manager.is_token_expired(self.cache_handler.get_cached_token())
-            self.logger.info(f"Auth check result: {'valid' if not result else 'expired'}")
-            return result
+            token = self.cache_handler.get_cached_token()
+            if token is None:
+                self.logger.info("Auth check result: no token exists")
+                return False
+                
+            is_expired = self.auth_manager.is_token_expired(token)
+            self.logger.info(f"Auth check result: {'valid' if not is_expired else 'expired'}")
+            return not is_expired  # Return True if token is NOT expired
         except Exception as e:
             self.logger.error(f"Error checking auth status: {str(e)}")
-            raise
+            return False  # Return False on error rather than raising
 
     def auth_refresh(self):
         self.auth_manager.validate_token(self.cache_handler.get_cached_token())
