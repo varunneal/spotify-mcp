@@ -186,6 +186,10 @@ class Client:
 
         return queue_info
 
+    @utils.validate
+    def transfer_playback(self, device_id, force_play=False):
+        self.sp.transfer_playback(device_id, force_play)
+
     def get_liked_songs(self):
         # todo
         results = self.sp.current_user_saved_tracks()
