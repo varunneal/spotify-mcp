@@ -29,12 +29,12 @@ def setup_logger():
     return Logger()
 
 
-server = Server("spotify-mcp")
-options = server.create_initialization_options()
 logger = setup_logger()
 spotify_client = spotify_api.Client(logger)
 
 
+server = Server("spotify-mcp")
+# options =
 class ToolModel(BaseModel):
     @classmethod
     def as_tool(cls):
@@ -216,8 +216,10 @@ async def handle_call_tool(
             case _:
                 error_msg = f"Unknown tool: {name}"
                 logger.error(error_msg)
-                raise ValueError(error_msg)
-
+                return [types.TextContent(
+                    type="text",
+                    text=error_msg
+                )]
     except SpotifyException as se:
         error_msg = f"Spotify Client error occurred: {str(se)}"
         logger.error(error_msg)
@@ -228,7 +230,10 @@ async def handle_call_tool(
     except Exception as e:
         error_msg = f"Unexpected error occurred: {str(e)}"
         logger.error(error_msg)
-        raise
+        return [types.TextContent(
+            type="text",
+            text=error_msg
+        )]
 
 
 async def main():
@@ -237,8 +242,8 @@ async def main():
             await server.run(
                 read_stream,
                 write_stream,
-                options
+                server.create_initialization_options()
             )
     except Exception as e:
-        logger.error(f"Server error occurred: {str(e)}", exc_info=True)
+        logger.error(f"Server error occurred: {str(e)}")
         raise
