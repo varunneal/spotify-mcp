@@ -72,6 +72,14 @@ class GetInfo(ToolModel):
     # qtype: str = Field(default="track", description="Type of item: 'track', 'album', 'artist', or 'playlist'. "
     #                                                 )
 
+class GetDevices(ToolModel):
+    """Get information about the user's available devices."""
+    pass
+
+class TransferPlayback(ToolModel):
+    """Transfer playback to a different device."""
+    device_id: str = Field(description="ID of the device to transfer playback to.")
+    play: Optional[bool] = Field(default=False, description="True to start playback on the new device.")
 
 class Search(ToolModel):
     """Search for tracks, albums, artists, or playlists on Spotify."""
@@ -102,6 +110,8 @@ async def handle_list_tools() -> list[types.Tool]:
         Search.as_tool(),
         Queue.as_tool(),
         GetInfo.as_tool(),
+        GetDevices.as_tool(),
+        TransferPlayback.as_tool()
     ]
     logger.info(f"Available tools: {[tool.name for tool in tools]}")
     return tools
@@ -211,6 +221,24 @@ async def handle_call_tool(
                 return [types.TextContent(
                     type="text",
                     text=json.dumps(item_info, indent=2)
+                )]
+
+            case "GetDevices":
+                logger.info("Getting devices")
+                devices = spotify_client.get_devices()
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(devices, indent=2)
+                )]
+
+            case "TransferPlayback":
+                logger.info(f"Transferring playback with arguments: {arguments}")
+                device_id = arguments.get("device_id")
+                play = arguments.get("play", False)
+                spotify_client.transfer_playback(device_id, play)
+                return [types.TextContent(
+                    type="text",
+                    text="Playback transferred."
                 )]
 
             case _:
