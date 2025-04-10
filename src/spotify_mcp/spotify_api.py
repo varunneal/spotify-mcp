@@ -29,7 +29,7 @@ class Client:
         """Initialize Spotify client with necessary permissions"""
         self.logger = logger
 
-        scope = "user-library-read,user-read-playback-state,user-modify-playback-state,user-read-currently-playing"
+        scope = "user-library-read,user-read-playback-state,user-modify-playback-state,user-read-currently-playing,playlist-read-private,playlist-read-collaborative,playlist-modify-private,playlist-modify-public"
 
         try:
             self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
@@ -206,7 +206,48 @@ class Client:
         if curr_track.get('is_playing'):
             return True
         return False
+    
+    ### Managing Playlists ###
 
+
+    def get_currrent_user_playlists(self, limit=50) -> List[Dict]:
+        """
+        Get current user's playlists.
+        """
+        playlists = self.sp.current_user_playlists()
+        if not playlists:
+            raise ValueError("No playlists found.")
+        return [utils.parse_playlist(playlist, self.username) for playlist in playlists['items']]
+    
+   
+    def get_playlist_tracks(self, playlist_id: str, limit=50) -> List[Dict]:
+        """
+        Get tracks from a playlist.
+        """
+        if self.username is None:
+            self.set_username()
+        playlist = self.sp.playlist(playlist_id)
+        if not playlist:
+            raise ValueError("No playlist found.")
+        return [utils.parse_tracks(playlist['tracks']['items'])]
+    
+    def add_tracks_to_playlist(self, playlist_id: str, track_ids: List[str], position: Optional[int] = None):
+        """
+        Add tracks to a playlist.
+        """
+        if self.username is None:
+            self.set_username()
+        if not playlist_id:
+            raise ValueError("No playlist ID provided.")
+        if not track_ids:
+            raise ValueError("No track IDs provided.")
+        
+        try:
+            response = self.sp.playlist_add_items(playlist_id, track_ids, position=position)
+            self.logger.info(f"Response from adding tracks: {track_ids} to playlist {playlist_id}: {response}")
+        except Exception as e:
+            self.logger.error(f"Error adding tracks to playlist: {str(e)}")
+       
     def get_devices(self) -> dict:
         return self.sp.devices()['devices']
 

@@ -61,7 +61,8 @@ def parse_playlist(playlist_item: dict, username, detailed=False) -> Optional[di
         'name': playlist_item['name'],
         'id': playlist_item['id'],
         'owner': playlist_item['owner']['display_name'],
-        'user_is_owner': playlist_item['owner']['display_name'] == username
+        'user_is_owner': playlist_item['owner']['display_name'] == username,
+        'total_tracks': playlist_item['tracks']['total'],
     }
     if detailed:
         narrowed_item['description'] = playlist_item.get('description')
@@ -127,6 +128,22 @@ def parse_search_results(results: Dict, qtype: str, username: Optional[str] = No
                 raise ValueError(f"Unknown qtype {qtype}")
 
     return dict(_results)
+
+def parse_tracks(items: Dict) -> list:
+    """
+    Parse a list of track items and return a list of parsed tracks.
+
+    Args:
+        items: List of track items
+    Returns:
+        List of parsed tracks
+    """ 
+    tracks = []
+    for idx, item in enumerate(items):
+        if not item:
+            continue
+        tracks.append(parse_track(item['track']))
+    return tracks
 
 
 def build_search_query(base_query: str,

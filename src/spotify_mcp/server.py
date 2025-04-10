@@ -82,6 +82,17 @@ class Search(ToolModel):
     limit: Optional[int] = Field(default=10, description="Maximum number of items to return")
 
 
+class Playlist(ToolModel):
+    """Manage Spotify playlists.
+    get: Get a list of user's playlists.
+    get_tracks: Get tracks in a specific playlist.
+    add_tracks: Add tracks to a specific playlist.
+    """
+    action: str = Field(description="Action to perform: 'get', 'get_tracks', 'add_tracks.")
+    playlist_id: Optional[str] = Field(default=None, description="ID of the playlist to manage.")
+    track_ids: Optional[List[str]] = Field(default=None, description="List of track IDs to add/remove.")
+
+
 @server.list_prompts()
 async def handle_list_prompts() -> list[types.Prompt]:
     return []
@@ -102,6 +113,7 @@ async def handle_list_tools() -> list[types.Tool]:
         Search.as_tool(),
         Queue.as_tool(),
         GetInfo.as_tool(),
+        Playlist.as_tool(),
     ]
     logger.info(f"Available tools: {[tool.name for tool in tools]}")
     return tools
@@ -212,7 +224,58 @@ async def handle_call_tool(
                     type="text",
                     text=json.dumps(item_info, indent=2)
                 )]
+            
+            case "Playlist":
+                logger.info(f"Playlist operation with arguments: {arguments}")
+                action = arguments.get("action")
+                match action:
+                    case "get":
+                        logger.info(f"Getting current user's playlists with arguments: {arguments}")
+                        playlists = spotify_client.get_currrent_user_playlists()
+                        return [types.TextContent(
+                            type="text",
+                            text=json.dumps(playlists, indent=2)
+                        )]
+                    case "get_tracks":
+                        logger.info(f"Getting tracks in playlist with arguments: {arguments}")
+                        if not arguments.get("playlist_id"):
+                            logger.error("playlist_id is required for get_tracks action.")
+                            return [types.TextContent(
+                                type="text",
+                                text="playlist_id is required for get_tracks action."
+                            )]
+                        tracks = spotify_client.get_playlist_tracks(arguments.get("playlist_id"))
+                        return [types.TextContent(
+                            type="text",
+                            text=json.dumps(tracks, indent=2)
+                        )]
+                    case "add_tracks":
+                        logger.info(f"Adding tracks to playlist with arguments: {arguments}")
+                        track_ids = arguments.get("track_ids")
+                        if isinstance(track_ids, str):
+                            try:
+                                track_ids = json.loads(track_ids)  # Convert JSON string to Python list
+                            except json.JSONDecodeError:
+                                logger.error("track_ids must be a list or a valid JSON array.")
+                                return [types.TextContent(
+                                    type="text",
+                                    text="Error: track_ids must be a list or a valid JSON array."
+                                )]
+                            
+                        spotify_client.add_tracks_to_playlist(
+                            playlist_id=arguments.get("playlist_id"),
+                            track_ids=track_ids
+                        )
+                        return [types.TextContent(
+                            type="text",
+                            text="Tracks added to playlist."
+                        )]
 
+                    case _:
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Unknown playlist action: {action}. Supported actions are: get, get_tracks, add_tracks."
+                        )]
             case _:
                 error_msg = f"Unknown tool: {name}"
                 logger.error(error_msg)
