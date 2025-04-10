@@ -247,6 +247,23 @@ class Client:
             self.logger.info(f"Response from adding tracks: {track_ids} to playlist {playlist_id}: {response}")
         except Exception as e:
             self.logger.error(f"Error adding tracks to playlist: {str(e)}")
+
+    def remove_tracks_from_playlist(self, playlist_id: str, track_ids: List[str]):
+        """
+        Remove tracks from a playlist.
+        """
+        if self.username is None:
+            self.set_username()
+        if not playlist_id:
+            raise ValueError("No playlist ID provided.")
+        if not track_ids:
+            raise ValueError("No track IDs provided.")
+        
+        try:
+            response = self.sp.playlist_remove_all_occurrences_of_items(playlist_id, track_ids)
+            self.logger.info(f"Response from removing tracks: {track_ids} from playlist {playlist_id}: {response}")
+        except Exception as e:
+            self.logger.error(f"Error removing tracks from playlist: {str(e)}")
        
     def get_devices(self) -> dict:
         return self.sp.devices()['devices']

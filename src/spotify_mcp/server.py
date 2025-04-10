@@ -84,11 +84,12 @@ class Search(ToolModel):
 
 class Playlist(ToolModel):
     """Manage Spotify playlists.
-    get: Get a list of user's playlists.
-    get_tracks: Get tracks in a specific playlist.
-    add_tracks: Add tracks to a specific playlist.
+    - get: Get a list of user's playlists.\n
+    - get_tracks: Get tracks in a specific playlist.\n
+    - add_tracks: Add tracks to a specific playlist.\n
+    - remove_tracks: Remove tracks from a specific playlist.\n
     """
-    action: str = Field(description="Action to perform: 'get', 'get_tracks', 'add_tracks.")
+    action: str = Field(description="Action to perform: 'get', 'get_tracks', 'add_tracks', remove_tracks.")
     playlist_id: Optional[str] = Field(default=None, description="ID of the playlist to manage.")
     track_ids: Optional[List[str]] = Field(default=None, description="List of track IDs to add/remove.")
 
@@ -269,6 +270,27 @@ async def handle_call_tool(
                         return [types.TextContent(
                             type="text",
                             text="Tracks added to playlist."
+                        )]
+                    case "remove_tracks":
+                        logger.info(f"Removing tracks from playlist with arguments: {arguments}")
+                        track_ids = arguments.get("track_ids")
+                        if isinstance(track_ids, str):
+                            try:
+                                track_ids = json.loads(track_ids)  # Convert JSON string to Python list
+                            except json.JSONDecodeError:
+                                logger.error("track_ids must be a list or a valid JSON array.")
+                                return [types.TextContent(
+                                    type="text",
+                                    text="Error: track_ids must be a list or a valid JSON array."
+                                )]
+                            
+                        spotify_client.remove_tracks_from_playlist(
+                            playlist_id=arguments.get("playlist_id"),
+                            track_ids=track_ids
+                        )
+                        return [types.TextContent(
+                            type="text",
+                            text="Tracks removed from playlist."
                         )]
 
                     case _:
