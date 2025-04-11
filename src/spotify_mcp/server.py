@@ -84,16 +84,18 @@ class Search(ToolModel):
 
 class Playlist(ToolModel):
     """Manage Spotify playlists.
-    - get: Get a list of user's playlists.\n
-    - get_tracks: Get tracks in a specific playlist.\n
-    - add_tracks: Add tracks to a specific playlist.\n
-    - remove_tracks: Remove tracks from a specific playlist.\n
+    - get: Get a list of user's playlists.
+    - get_tracks: Get tracks in a specific playlist.
+    - add_tracks: Add tracks to a specific playlist.
+    - remove_tracks: Remove tracks from a specific playlist.
+    - change_details: Change details of a specific playlist.
     """
-    action: str = Field(description="Action to perform: 'get', 'get_tracks', 'add_tracks', remove_tracks.")
+    action: str = Field(description="Action to perform: 'get', 'get_tracks', 'add_tracks', 'remove_tracks', 'change_details'.")
     playlist_id: Optional[str] = Field(default=None, description="ID of the playlist to manage.")
     track_ids: Optional[List[str]] = Field(default=None, description="List of track IDs to add/remove.")
-
-
+    name: Optional[str] = Field(default=None, description="New name for the playlist.")
+    description: Optional[str] = Field(default=None, description="New description for the playlist.")
+   
 @server.list_prompts()
 async def handle_list_prompts() -> list[types.Prompt]:
     return []
@@ -292,6 +294,31 @@ async def handle_call_tool(
                             type="text",
                             text="Tracks removed from playlist."
                         )]
+                    
+                    case "change_details":
+                        logger.info(f"Changing playlist details with arguments: {arguments}")
+                        if not arguments.get("playlist_id"):
+                            logger.error("playlist_id is required for change_details action.")
+                            return [types.TextContent(
+                                type="text",
+                                text="playlist_id is required for change_details action."
+                            )]
+                        if not arguments.get("name") and not arguments.get("description"):
+                            logger.error("At least one of name, description or public is required.")
+                            return [types.TextContent(
+                                type="text",
+                                text="At least one of name, description, public, or collaborative is required."
+                            )]
+                        
+                        spotify_client.change_playlist_details(
+                            playlist_id=arguments.get("playlist_id"),
+                            name=arguments.get("name"),
+                            description=arguments.get("description")
+                        )
+                        return [types.TextContent(
+                            type="text",
+                            text="Playlist details changed."
+                        )]       
 
                     case _:
                         return [types.TextContent(

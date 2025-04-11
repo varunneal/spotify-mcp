@@ -213,6 +213,7 @@ class Client:
     def get_currrent_user_playlists(self, limit=50) -> List[Dict]:
         """
         Get current user's playlists.
+        - limit: Max number of playlists to return.
         """
         playlists = self.sp.current_user_playlists()
         if not playlists:
@@ -223,6 +224,8 @@ class Client:
     def get_playlist_tracks(self, playlist_id: str, limit=50) -> List[Dict]:
         """
         Get tracks from a playlist.
+        - playlist_id: ID of the playlist to get tracks from.
+        - limit: Max number of tracks to return.
         """
         if self.username is None:
             self.set_username()
@@ -234,6 +237,9 @@ class Client:
     def add_tracks_to_playlist(self, playlist_id: str, track_ids: List[str], position: Optional[int] = None):
         """
         Add tracks to a playlist.
+        - playlist_id: ID of the playlist to modify.
+        - track_ids: List of track IDs to add.
+        - position: Position to insert the tracks at (optional).
         """
         if self.username is None:
             self.set_username()
@@ -251,6 +257,8 @@ class Client:
     def remove_tracks_from_playlist(self, playlist_id: str, track_ids: List[str]):
         """
         Remove tracks from a playlist.
+        - playlist_id: ID of the playlist to modify.
+        - track_ids: List of track IDs to remove.
         """
         if self.username is None:
             self.set_username()
@@ -264,6 +272,25 @@ class Client:
             self.logger.info(f"Response from removing tracks: {track_ids} from playlist {playlist_id}: {response}")
         except Exception as e:
             self.logger.error(f"Error removing tracks from playlist: {str(e)}")
+
+    def change_playlist_details(self, playlist_id: str, name: Optional[str] = None, description: Optional[str] = None):
+        """
+        Change playlist details.
+        - playlist_id: ID of the playlist to modify.
+        - name: New name for the playlist.
+        - public: Whether the playlist should be public.
+        - description: New description for the playlist.
+        """
+        if self.username is None:
+            self.set_username()
+        if not playlist_id:
+            raise ValueError("No playlist ID provided.")
+        
+        try:
+            response = self.sp.playlist_change_details(playlist_id, name=name, description=description)
+            self.logger.info(f"Response from changing playlist details: {response}")
+        except Exception as e:
+            self.logger.error(f"Error changing playlist details: {str(e)}")
        
     def get_devices(self) -> dict:
         return self.sp.devices()['devices']
