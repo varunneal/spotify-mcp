@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, AnyUrl
 from spotipy import SpotifyException
 
 from . import spotify_api
+from .utils import normalize_redirect_uri
 
 
 def setup_logger():
@@ -30,6 +31,9 @@ def setup_logger():
 
 
 logger = setup_logger()
+# Spotifyの要件に合わせてリダイレクトURIを正規化
+if spotify_api.REDIRECT_URI:
+    spotify_api.REDIRECT_URI = normalize_redirect_uri(spotify_api.REDIRECT_URI)
 spotify_client = spotify_api.Client(logger)
 
 

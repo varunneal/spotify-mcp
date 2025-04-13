@@ -3,12 +3,27 @@ from typing import Optional, Dict
 import functools
 from typing import Callable, TypeVar
 from typing import Optional, Dict
-from urllib.parse import quote
+from urllib.parse import quote, urlparse, urlunparse
 
 from requests import RequestException
 
 T = TypeVar('T')
 
+
+def normalize_redirect_uri(url: str) -> str:
+    if not url:
+        return url
+        
+    parsed = urlparse(url)
+    
+    # Convert localhost to 127.0.0.1
+    if parsed.netloc == 'localhost' or parsed.netloc.startswith('localhost:'):
+        port = ''
+        if ':' in parsed.netloc:
+            port = ':' + parsed.netloc.split(':')[1]
+        parsed = parsed._replace(netloc=f'127.0.0.1{port}')
+    
+    return urlunparse(parsed)
 
 def parse_track(track_item: dict, detailed=False) -> Optional[dict]:
     if not track_item:
