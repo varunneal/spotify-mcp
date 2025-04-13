@@ -41,6 +41,7 @@ git clone https://github.com/varunneal/spotify-mcp.git
 Add this tool as a mcp server.
 
 On MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
+
 On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
   ```json
@@ -66,7 +67,20 @@ Please open an issue if you can't get this MCP working. Here are some tips:
 
 1. Make sure `uv` is updated. I recommend version `>=0.54`.
 2. Make sure claude has execution permisisons for the project: `chmod -R 755`.
-3. Ensure you have Spotify premium (needed for running developer API).
+3. Ensure you have Spotify premium (needed for running developer API). 
+
+This MCP will emit logs to std err (as specified in the MCP) spec. On Mac the Claude Desktop app should emit these logs
+to `~/Library/Logs/Claude`. 
+On other platforms [you can find logs here](https://modelcontextprotocol.io/quickstart/user#getting-logs-from-claude-for-desktop).
+
+
+You can launch the MCP Inspector via [`npm`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) with this command:
+
+```bash
+npx @modelcontextprotocol/inspector uv --directory /path/to/spotify_mcp run spotify-mcp
+```
+
+Upon launching, the Inspector will display a URL that you can access in your browser to begin debugging.
 
 ## TODO
 
@@ -76,6 +90,8 @@ from the Spotify API. Most new features will be relatively minor or for the heal
 - tests.
 - adding API support for managing playlists.
 - adding API support for paginated search results/playlists/albums.
+
+PRs appreciated! 
 
 ## Deployment
 
@@ -109,16 +125,3 @@ Note: You'll need to set PyPI credentials via environment variables or command f
 
 - Token: `--token` or `UV_PUBLISH_TOKEN`
 - Or username/password: `--username`/`UV_PUBLISH_USERNAME` and `--password`/`UV_PUBLISH_PASSWORD`
-
-### Debugging
-
-Since MCP servers run over stdio, debugging can be challenging. For the best debugging
-experience, we strongly recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector).
-
-You can launch the MCP Inspector via [`npm`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) with this command:
-
-```bash
-npx @modelcontextprotocol/inspector uv --directory /Users/varun/Documents/Python/spotify_mcp run spotify-mcp
-```
-
-Upon launching, the Inspector will display a URL that you can access in your browser to begin debugging.

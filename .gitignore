@@ -1,3 +1,5 @@
 .cache
 .DS_Store
-src/spotify_mcp/__pycache__/
+__pycache__/
+.env
+.idea/
