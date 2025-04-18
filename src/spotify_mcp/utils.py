@@ -219,3 +219,14 @@ def validate(func: Callable[..., T]) -> Callable[..., T]:
         return func(self, *args, **kwargs)
 
     return wrapper
+
+def ensure_username(func):
+    """
+    Decorator to ensure that the username is set before calling the function.
+    """
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if self.username is None:
+            self.set_username()
+        return func(self, *args, **kwargs)
+    return wrapper

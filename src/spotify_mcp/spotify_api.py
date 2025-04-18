@@ -220,20 +220,19 @@ class Client:
             raise ValueError("No playlists found.")
         return [utils.parse_playlist(playlist, self.username) for playlist in playlists['items']]
     
-   
+    @utils.ensure_username
     def get_playlist_tracks(self, playlist_id: str, limit=50) -> List[Dict]:
         """
         Get tracks from a playlist.
         - playlist_id: ID of the playlist to get tracks from.
         - limit: Max number of tracks to return.
         """
-        if self.username is None:
-            self.set_username()
         playlist = self.sp.playlist(playlist_id)
         if not playlist:
             raise ValueError("No playlist found.")
         return [utils.parse_tracks(playlist['tracks']['items'])]
     
+    @utils.ensure_username
     def add_tracks_to_playlist(self, playlist_id: str, track_ids: List[str], position: Optional[int] = None):
         """
         Add tracks to a playlist.
@@ -241,8 +240,6 @@ class Client:
         - track_ids: List of track IDs to add.
         - position: Position to insert the tracks at (optional).
         """
-        if self.username is None:
-            self.set_username()
         if not playlist_id:
             raise ValueError("No playlist ID provided.")
         if not track_ids:
@@ -254,14 +251,13 @@ class Client:
         except Exception as e:
             self.logger.error(f"Error adding tracks to playlist: {str(e)}")
 
+    @utils.ensure_username
     def remove_tracks_from_playlist(self, playlist_id: str, track_ids: List[str]):
         """
         Remove tracks from a playlist.
         - playlist_id: ID of the playlist to modify.
         - track_ids: List of track IDs to remove.
         """
-        if self.username is None:
-            self.set_username()
         if not playlist_id:
             raise ValueError("No playlist ID provided.")
         if not track_ids:
@@ -273,6 +269,7 @@ class Client:
         except Exception as e:
             self.logger.error(f"Error removing tracks from playlist: {str(e)}")
 
+    @utils.ensure_username
     def change_playlist_details(self, playlist_id: str, name: Optional[str] = None, description: Optional[str] = None):
         """
         Change playlist details.
@@ -281,8 +278,6 @@ class Client:
         - public: Whether the playlist should be public.
         - description: New description for the playlist.
         """
-        if self.username is None:
-            self.set_username()
         if not playlist_id:
             raise ValueError("No playlist ID provided.")
         
