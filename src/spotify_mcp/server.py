@@ -69,7 +69,7 @@ class GetInfo(ToolModel):
     item_uri: str = Field(description="URI of the item to get information about. " +
                                       "If 'playlist' or 'album', returns its tracks. " +
                                       "If 'artist', returns albums and top tracks.")
-    # qtype: str = Field(default="track", description="Type of item: 'track', 'album', 'artist', or 'playlist'. "
+# qtype: str = Field(default="track", description="Type of item: 'track', 'album', 'artist', or 'playlist'. "
     #                                                 )
 
 
@@ -80,6 +80,11 @@ class Search(ToolModel):
                                  description="Type of items to search for (track, album, artist, playlist, " +
                                              "or comma-separated combination)")
     limit: Optional[int] = Field(default=10, description="Maximum number of items to return")
+
+
+class FavouriteSongs(ToolModel):
+    """List the user's favourite (liked) songs."""
+    limit: Optional[int] = Field(default=20, description="Maximum number of liked songs to return")
 
 
 @server.list_prompts()
@@ -96,12 +101,13 @@ async def handle_list_resources() -> list[types.Resource]:
 async def handle_list_tools() -> list[types.Tool]:
     """List available tools."""
     logger.info("Listing available tools")
-    # await server.request_context.session.send_notification("are you recieving this notification?")
+# await server.request_context.session.send_notification("are you recieving this notification?")
     tools = [
         Playback.as_tool(),
         Search.as_tool(),
         Queue.as_tool(),
         GetInfo.as_tool(),
+        FavouriteSongs.as_tool(),
     ]
     logger.info(f"Available tools: {[tool.name for tool in tools]}")
     return tools
@@ -211,6 +217,17 @@ async def handle_call_tool(
                 return [types.TextContent(
                     type="text",
                     text=json.dumps(item_info, indent=2)
+                )]
+
+            case "FavouriteSongs":
+                logger.info(f"Fetching favourite songs with arguments: {arguments}")
+                favourite_songs = spotify_client.get_favourite_songs(
+                    limit=arguments.get("limit", 20)
+                )
+                logger.info("Favourite songs fetched successfully.")
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(favourite_songs, indent=2)
                 )]
 
             case _:
