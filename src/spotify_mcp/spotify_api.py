@@ -191,6 +191,24 @@ class Client:
 
         return queue_info
 
+    def get_favourite_songs(self, limit=20):
+        """
+        Fetches the user's favourite (liked) songs.
+        - limit: Maximum number of liked songs to fetch.
+        """
+        try:
+            results = self.sp.current_user_saved_tracks(limit=limit)
+            favourite_songs = []
+            for item in results['items']:
+                track = item['track']
+                favourite_songs.append(utils.parse_track(track))
+
+            self.logger.info(f"Fetched {len(favourite_songs)} favourite songs.")
+            return favourite_songs
+        except Exception as e:
+            self.logger.error(f"Error fetching favourite songs: {str(e)}")
+            raise
+
     def get_liked_songs(self):
         # todo
         results = self.sp.current_user_saved_tracks()
