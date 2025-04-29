@@ -68,8 +68,9 @@ class GetInfo(ToolModel):
     """Get detailed information about a Spotify item (track, album, artist, or playlist)."""
     item_uri: str = Field(description="URI of the item to get information about. " +
                                       "If 'playlist' or 'album', returns its tracks. " +
+                                      "If 'user', returns profile and playlists. " +
                                       "If 'artist', returns albums and top tracks.")
-    # qtype: str = Field(default="track", description="Type of item: 'track', 'album', 'artist', or 'playlist'. "
+    # qtype: str = Field(default="track", description="Type of item: 'track', 'album', 'user', 'artist', or 'playlist'. "
     #                                                 )
 
 

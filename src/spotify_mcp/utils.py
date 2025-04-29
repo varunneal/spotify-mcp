@@ -41,12 +41,25 @@ def parse_track(track_item: dict, detailed=False) -> Optional[dict]:
     return narrowed_item
 
 
+def parse_user(user_item: dict, detailed=False) -> Optional[dict]:
+    if not user_item:
+        return None
+    narrowed_item = {
+        'name': user_item['display_name'],
+        'id': user_item['id'],
+    }
+    if detailed:
+        narrowed_item['followers'] = user_item.get('followers')
+
+    return narrowed_item
+
+
 def parse_artist(artist_item: dict, detailed=False) -> Optional[dict]:
     if not artist_item:
         return None
     narrowed_item = {
         'name': artist_item['name'],
-        'id': artist_item['id'],
+        'id': artist_item['id']
     }
     if detailed:
         narrowed_item['genres'] = artist_item.get('genres')

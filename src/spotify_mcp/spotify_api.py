@@ -83,6 +83,25 @@ class Client:
             case 'album':
                 album_info = utils.parse_album(self.sp.album(item_id), detailed=True)
                 return album_info
+            case 'user':
+                user_info = utils.parse_user(self.sp.user(item_id), detailed=True)
+                
+                # Fetch user's playlists
+                self.logger.info(f"Fetching playlists for user '{item_id}'")
+                results = self.sp.user_playlists(item_id, limit=100)
+                
+                if results and results['items']:
+                    playlists = []
+                    for item in results['items']:
+                        playlists.append(utils.parse_playlist(item, self.username))
+                    
+                    self.logger.info(f"Found {len(playlists)} playlists")
+                    user_info['playlists'] = playlists
+                else:
+                    self.logger.info("No playlists found for this user")
+                    user_info['playlists'] = []
+                    
+                return user_info
             case 'artist':
                 artist_info = utils.parse_artist(self.sp.artist(item_id), detailed=True)
                 albums = self.sp.artist_albums(item_id)
