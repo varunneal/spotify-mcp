@@ -76,7 +76,8 @@ def parse_playlist(playlist_item: dict, username, detailed=False) -> Optional[di
         'name': playlist_item['name'],
         'id': playlist_item['id'],
         'owner': playlist_item['owner']['display_name'],
-        'user_is_owner': playlist_item['owner']['display_name'] == username
+        'user_is_owner': playlist_item['owner']['display_name'] == username,
+        'total_tracks': playlist_item['tracks']['total'],
     }
     if detailed:
         narrowed_item['description'] = playlist_item.get('description')
@@ -142,6 +143,22 @@ def parse_search_results(results: Dict, qtype: str, username: Optional[str] = No
                 raise ValueError(f"Unknown qtype {qtype}")
 
     return dict(_results)
+
+def parse_tracks(items: Dict) -> list:
+    """
+    Parse a list of track items and return a list of parsed tracks.
+
+    Args:
+        items: List of track items
+    Returns:
+        List of parsed tracks
+    """ 
+    tracks = []
+    for idx, item in enumerate(items):
+        if not item:
+            continue
+        tracks.append(parse_track(item['track']))
+    return tracks
 
 
 def build_search_query(base_query: str,
@@ -216,4 +233,15 @@ def validate(func: Callable[..., T]) -> Callable[..., T]:
         # TODO: try-except RequestException
         return func(self, *args, **kwargs)
 
+    return wrapper
+
+def ensure_username(func):
+    """
+    Decorator to ensure that the username is set before calling the function.
+    """
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if self.username is None:
+            self.set_username()
+        return func(self, *args, **kwargs)
     return wrapper
