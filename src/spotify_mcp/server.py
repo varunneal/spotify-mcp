@@ -69,8 +69,6 @@ class GetInfo(ToolModel):
     item_uri: str = Field(description="URI of the item to get information about. " +
                                       "If 'playlist' or 'album', returns its tracks. " +
                                       "If 'artist', returns albums and top tracks.")
-    # qtype: str = Field(default="track", description="Type of item: 'track', 'album', 'artist', or 'playlist'. "
-    #                                                 )
 
 
 class Search(ToolModel):
