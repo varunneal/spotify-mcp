@@ -8,6 +8,7 @@ MCP project to connect Claude with Spotify. Built on top of [spotipy-dev's API](
 - Search for tracks/albums/artists/playlists
 - Get info about a track/album/artist/playlist
 - Manage the Spotify queue
+- Manage, create, and update playlists
 
 ## Demo
 
@@ -18,7 +19,6 @@ Make sure to turn on audio
     Video
   </summary>
   https://github.com/user-attachments/assets/20ee1f92-f3e3-4dfa-b945-ca57bc1e0894
-  </summary>
 </details>
 
 ## Configuration
@@ -28,7 +28,9 @@ Make sure to turn on audio
 Create an account on [developer.spotify.com](https://developer.spotify.com/). Navigate to [the dashboard](https://developer.spotify.com/dashboard). 
 Create an app with redirect_uri as http://127.0.0.1:8080/callback. 
 You can choose any port you want but you must use http and an explicit loopback address (IPv4 or IPv6).
-See [here](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri) for more info/troubleshooting.
+
+See [here](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri) for more info/troubleshooting. 
+You may have to restart your MCP environment (e.g. Claude Desktop) once or twice before it works.
 
 ### Run this project locally
 
@@ -39,11 +41,11 @@ Run this project locally by cloning this repo
 git clone https://github.com/varunneal/spotify-mcp.git
 ```
 
-Add this tool as a mcp server.
+Add this tool as a mcp server. 
 
-On MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
+Claude Desktop on MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
 
-On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
+Claude Desktop on Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
   ```json
   "spotify": {
@@ -92,7 +94,7 @@ from the Spotify API. Most new features will be relatively minor or for the heal
 - adding API support for managing playlists.
 - adding API support for paginated search results/playlists/albums.
 
-PRs appreciated! Thanks to @jamiew, @davidpadbury, @manncodes, @hyuma7, and others for contributions.  
+PRs appreciated! Thanks to @jamiew, @davidpadbury, @manncodes, @hyuma7, @aanurraj, and others for contributions.  
 
 ## Deployment
 
