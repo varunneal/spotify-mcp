@@ -92,7 +92,7 @@ from the Spotify API. Most new features will be relatively minor or for the heal
 - adding API support for managing playlists.
 - adding API support for paginated search results/playlists/albums.
 
-PRs appreciated! Thanks to @jamiew, @davidpadbury, @hyuma7, and others for contributions.  
+PRs appreciated! Thanks to @jamiew, @davidpadbury, @manncodes, @hyuma7, and others for contributions.  
 
 ## Deployment
 
