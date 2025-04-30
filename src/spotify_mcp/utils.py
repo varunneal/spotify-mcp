@@ -3,12 +3,27 @@ from typing import Optional, Dict
 import functools
 from typing import Callable, TypeVar
 from typing import Optional, Dict
-from urllib.parse import quote
+from urllib.parse import quote, urlparse, urlunparse
 
 from requests import RequestException
 
 T = TypeVar('T')
 
+
+def normalize_redirect_uri(url: str) -> str:
+    if not url:
+        return url
+        
+    parsed = urlparse(url)
+    
+    # Convert localhost to 127.0.0.1
+    if parsed.netloc == 'localhost' or parsed.netloc.startswith('localhost:'):
+        port = ''
+        if ':' in parsed.netloc:
+            port = ':' + parsed.netloc.split(':')[1]
+        parsed = parsed._replace(netloc=f'127.0.0.1{port}')
+    
+    return urlunparse(parsed)
 
 def parse_track(track_item: dict, detailed=False) -> Optional[dict]:
     if not track_item:
@@ -74,7 +89,8 @@ def parse_playlist(playlist_item: dict, username, detailed=False) -> Optional[di
         'name': playlist_item['name'],
         'id': playlist_item['id'],
         'owner': playlist_item['owner']['display_name'],
-        'user_is_owner': playlist_item['owner']['display_name'] == username
+        'user_is_owner': playlist_item['owner']['display_name'] == username,
+        'total_tracks': playlist_item['tracks']['total'],
     }
     if detailed:
         narrowed_item['description'] = playlist_item.get('description')
@@ -140,6 +156,22 @@ def parse_search_results(results: Dict, qtype: str, username: Optional[str] = No
                 raise ValueError(f"Unknown qtype {qtype}")
 
     return dict(_results)
+
+def parse_tracks(items: Dict) -> list:
+    """
+    Parse a list of track items and return a list of parsed tracks.
+
+    Args:
+        items: List of track items
+    Returns:
+        List of parsed tracks
+    """ 
+    tracks = []
+    for idx, item in enumerate(items):
+        if not item:
+            continue
+        tracks.append(parse_track(item['track']))
+    return tracks
 
 
 def build_search_query(base_query: str,
@@ -214,4 +246,15 @@ def validate(func: Callable[..., T]) -> Callable[..., T]:
         # TODO: try-except RequestException
         return func(self, *args, **kwargs)
 
+    return wrapper
+
+def ensure_username(func):
+    """
+    Decorator to ensure that the username is set before calling the function.
+    """
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if self.username is None:
+            self.set_username()
+        return func(self, *args, **kwargs)
     return wrapper
