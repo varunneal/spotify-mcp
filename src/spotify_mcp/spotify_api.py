@@ -206,11 +206,8 @@ class Client:
         if curr_track.get('is_playing'):
             return True
         return False
-    
-    ### Managing Playlists ###
 
-
-    def get_currrent_user_playlists(self, limit=50) -> List[Dict]:
+    def get_current_user_playlists(self, limit=50) -> List[Dict]:
         """
         Get current user's playlists.
         - limit: Max number of playlists to return.
@@ -230,7 +227,7 @@ class Client:
         playlist = self.sp.playlist(playlist_id)
         if not playlist:
             raise ValueError("No playlist found.")
-        return [utils.parse_tracks(playlist['tracks']['items'])]
+        return utils.parse_tracks(playlist['tracks']['items'])
     
     @utils.ensure_username
     def add_tracks_to_playlist(self, playlist_id: str, track_ids: List[str], position: Optional[int] = None):

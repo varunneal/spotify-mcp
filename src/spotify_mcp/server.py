@@ -32,8 +32,9 @@ def setup_logger():
 logger = setup_logger()
 spotify_client = spotify_api.Client(logger)
 
-
 server = Server("spotify-mcp")
+
+
 # options =
 class ToolModel(BaseModel):
     @classmethod
@@ -90,12 +91,14 @@ class Playlist(ToolModel):
     - remove_tracks: Remove tracks from a specific playlist.
     - change_details: Change details of a specific playlist.
     """
-    action: str = Field(description="Action to perform: 'get', 'get_tracks', 'add_tracks', 'remove_tracks', 'change_details'.")
+    action: str = Field(
+        description="Action to perform: 'get', 'get_tracks', 'add_tracks', 'remove_tracks', 'change_details'.")
     playlist_id: Optional[str] = Field(default=None, description="ID of the playlist to manage.")
     track_ids: Optional[List[str]] = Field(default=None, description="List of track IDs to add/remove.")
     name: Optional[str] = Field(default=None, description="New name for the playlist.")
     description: Optional[str] = Field(default=None, description="New description for the playlist.")
-   
+
+
 @server.list_prompts()
 async def handle_list_prompts() -> list[types.Prompt]:
     return []
@@ -227,14 +230,14 @@ async def handle_call_tool(
                     type="text",
                     text=json.dumps(item_info, indent=2)
                 )]
-            
+
             case "Playlist":
                 logger.info(f"Playlist operation with arguments: {arguments}")
                 action = arguments.get("action")
                 match action:
                     case "get":
                         logger.info(f"Getting current user's playlists with arguments: {arguments}")
-                        playlists = spotify_client.get_currrent_user_playlists()
+                        playlists = spotify_client.get_current_user_playlists()
                         return [types.TextContent(
                             type="text",
                             text=json.dumps(playlists, indent=2)
@@ -264,7 +267,7 @@ async def handle_call_tool(
                                     type="text",
                                     text="Error: track_ids must be a list or a valid JSON array."
                                 )]
-                            
+
                         spotify_client.add_tracks_to_playlist(
                             playlist_id=arguments.get("playlist_id"),
                             track_ids=track_ids
@@ -285,7 +288,7 @@ async def handle_call_tool(
                                     type="text",
                                     text="Error: track_ids must be a list or a valid JSON array."
                                 )]
-                            
+
                         spotify_client.remove_tracks_from_playlist(
                             playlist_id=arguments.get("playlist_id"),
                             track_ids=track_ids
@@ -294,7 +297,7 @@ async def handle_call_tool(
                             type="text",
                             text="Tracks removed from playlist."
                         )]
-                    
+
                     case "change_details":
                         logger.info(f"Changing playlist details with arguments: {arguments}")
                         if not arguments.get("playlist_id"):
@@ -309,7 +312,7 @@ async def handle_call_tool(
                                 type="text",
                                 text="At least one of name, description, public, or collaborative is required."
                             )]
-                        
+
                         spotify_client.change_playlist_details(
                             playlist_id=arguments.get("playlist_id"),
                             name=arguments.get("name"),
@@ -318,12 +321,13 @@ async def handle_call_tool(
                         return [types.TextContent(
                             type="text",
                             text="Playlist details changed."
-                        )]       
+                        )]
 
                     case _:
                         return [types.TextContent(
                             type="text",
-                            text=f"Unknown playlist action: {action}. Supported actions are: get, get_tracks, add_tracks."
+                            text=f"Unknown playlist action: {action}."
+                                 "Supported actions are: get, get_tracks, add_tracks, remove_tracks, change_details."
                         )]
             case _:
                 error_msg = f"Unknown tool: {name}"
