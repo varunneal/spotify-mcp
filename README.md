@@ -27,7 +27,7 @@ Make sure to turn on audio
 
 Create an account on [developer.spotify.com](https://developer.spotify.com/). Navigate to [the dashboard](https://developer.spotify.com/dashboard). 
 Create an app with redirect_uri as http://127.0.0.1:8080/callback. 
-You can choose any port you want but you must use http and an explicit loopback address.
+You can choose any port you want but you must use http and an explicit loopback address (IPv4 or IPv6).
 See [here](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri) for more info/troubleshooting.
 
 ### Run this project locally
