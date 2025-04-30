@@ -15,6 +15,10 @@ CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
 
+# Normalize the redirect URI to meet Spotify's requirements
+if REDIRECT_URI:
+    REDIRECT_URI = utils.normalize_redirect_uri(REDIRECT_URI)
+
 SCOPES = ["user-read-currently-playing", "user-read-playback-state", "user-read-currently-playing",  # spotify connect
           "app-remote-control", "streaming",  # playback
           "playlist-read-private", "playlist-read-collaborative", "playlist-modify-private", "playlist-modify-public",
