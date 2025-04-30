@@ -24,7 +24,9 @@ Make sure to turn on audio
 
 ### Getting Spotify API Keys
 Create an account on [developer.spotify.com](https://developer.spotify.com/). Navigate to [the dashboard](https://developer.spotify.com/dashboard). 
-Create an app with redirect_uri as http://127.0.0.1:8080/callback. (You can choose any port you want but you must use http and localhost). 
+Create an app with redirect_uri as http://127.0.0.1:8080/callback. 
+You can choose any port you want but you must use http and an explicit loopback address.
+See [here](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri) for more info/troubleshooting.
 I set "APIs used" to "Web Playback SDK".
 
 ### Run this project locally
