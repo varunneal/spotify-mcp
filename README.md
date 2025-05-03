@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/varunneal-spotify-mcp-badge.png)](https://mseep.ai/app/varunneal-spotify-mcp)
+
 # spotify-mcp MCP server
 
 MCP project to connect Claude with Spotify. Built on top of [spotipy-dev's API](https://github.com/spotipy-dev/spotipy/tree/2.24.0).
