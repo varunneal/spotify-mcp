@@ -25,11 +25,11 @@ Make sure to turn on audio
 
 ### Getting Spotify API Keys
 
-Create an account on [developer.spotify.com](https://developer.spotify.com/). Navigate to [the dashboard](https://developer.spotify.com/dashboard). 
-Create an app with redirect_uri as http://127.0.0.1:8080/callback. 
+Create an account on [developer.spotify.com](https://developer.spotify.com/). Navigate to [the dashboard](https://developer.spotify.com/dashboard).
+Create an app with redirect_uri as http://127.0.0.1:8080/callback.
 You can choose any port you want but you must use http and an explicit loopback address (IPv4 or IPv6).
 
-See [here](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri) for more info/troubleshooting. 
+See [here](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri) for more info/troubleshooting.
 You may have to restart your MCP environment (e.g. Claude Desktop) once or twice before it works.
 
 ### Run this project locally
@@ -41,18 +41,38 @@ Run this project locally by cloning this repo
 git clone https://github.com/varunneal/spotify-mcp.git
 ```
 
-Add this tool as a mcp server. 
+Add this tool as a mcp server.
+
+Note: You don't need to run this project locally if you are planning to integrate MCP host like claude desktop.
+As you are already providing all the clear instructions in the config.json, the host will figure out the wiring and will run.
 
 Claude Desktop on MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
 
 Claude Desktop on Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
-  ```json
+```json
+"spotify": {
+    "command": "uv",
+    "args": [
+      "--directory",
+      "/path/to/spotify_mcp",
+      "run",
+      "spotify-mcp"
+    ],
+    "env": {
+      "SPOTIFY_CLIENT_ID": YOUR_CLIENT_ID,
+      "SPOTIFY_CLIENT_SECRET": YOUR_CLIENT_SECRET,
+      "SPOTIFY_REDIRECT_URI": "http://127.0.0.1:8080/callback"
+    }
+  }
+
+  If the above doesn't work, please try this one, Ideally you are specifying the exact location of your uv
+
   "spotify": {
-      "command": "uv",
+      "command": "/Users/your-username/.local/bin/uv",
       "args": [
         "--directory",
-        "/path/to/spotify_mcp",
+        "/Users/your-username/dir-1/dir-2/spotify-mcp",
         "run",
         "spotify-mcp"
       ],
@@ -62,7 +82,8 @@ Claude Desktop on Windows: `%APPDATA%/Claude/claude_desktop_config.json`
         "SPOTIFY_REDIRECT_URI": "http://127.0.0.1:8080/callback"
       }
     }
-  ```
+
+```
 
 ### Troubleshooting
 
@@ -70,12 +91,11 @@ Please open an issue if you can't get this MCP working. Here are some tips:
 
 1. Make sure `uv` is updated. I recommend version `>=0.54`.
 2. Make sure claude has execution permisisons for the project: `chmod -R 755`.
-3. Ensure you have Spotify premium (needed for running developer API). 
+3. Ensure you have Spotify premium (needed for running developer API).
 
 This MCP will emit logs to std err (as specified in the MCP) spec. On Mac the Claude Desktop app should emit these logs
-to `~/Library/Logs/Claude`. 
+to `~/Library/Logs/Claude`.
 On other platforms [you can find logs here](https://modelcontextprotocol.io/quickstart/user#getting-logs-from-claude-for-desktop).
-
 
 You can launch the MCP Inspector via [`npm`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) with this command:
 
@@ -94,7 +114,7 @@ from the Spotify API. Most new features will be relatively minor or for the heal
 - adding API support for managing playlists.
 - adding API support for paginated search results/playlists/albums.
 
-PRs appreciated! Thanks to @jamiew, @davidpadbury, @manncodes, @hyuma7, @aanurraj, and others for contributions.  
+PRs appreciated! Thanks to @jamiew, @davidpadbury, @manncodes, @hyuma7, @aanurraj, and others for contributions.
 
 ## Deployment
 
