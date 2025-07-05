@@ -12,11 +12,9 @@ MCP project to connect Claude with Spotify. Built on top of [spotipy-dev's API](
 
 ## Demo
 
-Make sure to turn on audio
-
 <details>
   <summary>
-    Video
+    Video -- turn on audio
   </summary>
   https://github.com/user-attachments/assets/20ee1f92-f3e3-4dfa-b945-ca57bc1e0894
 </details>
@@ -32,20 +30,44 @@ You can choose any port you want but you must use http and an explicit loopback 
 See [here](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri) for more info/troubleshooting. 
 You may have to restart your MCP environment (e.g. Claude Desktop) once or twice before it works.
 
+### Locating Claude Config
+
+For Cursor, Claude Desktop, or any other MCP-enabled client you will have to locate your config.
+
+- Claude Desktop location on MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
+
+- Claude Desktop location on Windows: `%APPDATA%/Claude/claude_desktop_config.json`
+
+
+### Run this project with uvx
+
+Add this snippet to your MCP Config.
+
+```json
+"spotify": {
+  "command": "uvx",
+  "args": [
+    "--from",
+    "git+https://github.com/varunneal/spotify-mcp",
+    "spotify-mcp"
+  ],
+  "env": {
+    "SPOTIFY_CLIENT_ID": YOUR_CLIENT_ID,
+    "SPOTIFY_CLIENT_SECRET": YOUR_CLIENT_SECRET,
+    "SPOTIFY_REDIRECT_URI": "http://127.0.0.1:8080/callback"
+  }
+}
+```
+
 ### Run this project locally
 
-This project is not yet set up for ephemeral environments (e.g. `uvx` usage).
-Run this project locally by cloning this repo
+Alternatively you can run this project locally by cloning this repo:
 
 ```bash
 git clone https://github.com/varunneal/spotify-mcp.git
 ```
 
-Add this tool as a mcp server. 
-
-Claude Desktop on MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
-
-Claude Desktop on Windows: `%APPDATA%/Claude/claude_desktop_config.json`
+Add it to your MCP Config like this:
 
   ```json
   "spotify": {
@@ -91,40 +113,57 @@ Unfortunately, a bunch of cool features have [now been deprecated](https://techc
 from the Spotify API. Most new features will be relatively minor or for the health of the project:
 
 - tests.
-- adding API support for managing playlists.
+- ~~adding API support for managing playlists.~~
 - adding API support for paginated search results/playlists/albums.
 
 PRs appreciated! Thanks to @jamiew, @davidpadbury, @manncodes, @hyuma7, @aanurraj, and others for contributions.  
 
-## Deployment
+[//]: # (## Deployment)
 
-(todo)
+[//]: # (&#40;todo&#41;)
 
-### Building and Publishing
+[//]: # (### Building and Publishing)
 
-To prepare the package for distribution:
+[//]: # ()
+[//]: # (To prepare the package for distribution:)
 
-1. Sync dependencies and update lockfile:
+[//]: # ()
+[//]: # (1. Sync dependencies and update lockfile:)
 
-```bash
-uv sync
-```
+[//]: # ()
+[//]: # (```bash)
 
-2. Build package distributions:
+[//]: # (uv sync)
 
-```bash
-uv build
-```
+[//]: # (```)
 
-This will create source and wheel distributions in the `dist/` directory.
+[//]: # ()
+[//]: # (2. Build package distributions:)
 
-3. Publish to PyPI:
+[//]: # ()
+[//]: # (```bash)
 
-```bash
-uv publish
-```
+[//]: # (uv build)
 
-Note: You'll need to set PyPI credentials via environment variables or command flags:
+[//]: # (```)
 
-- Token: `--token` or `UV_PUBLISH_TOKEN`
-- Or username/password: `--username`/`UV_PUBLISH_USERNAME` and `--password`/`UV_PUBLISH_PASSWORD`
+[//]: # ()
+[//]: # (This will create source and wheel distributions in the `dist/` directory.)
+
+[//]: # ()
+[//]: # (3. Publish to PyPI:)
+
+[//]: # ()
+[//]: # (```bash)
+
+[//]: # (uv publish)
+
+[//]: # (```)
+
+[//]: # ()
+[//]: # (Note: You'll need to set PyPI credentials via environment variables or command flags:)
+
+[//]: # ()
+[//]: # (- Token: `--token` or `UV_PUBLISH_TOKEN`)
+
+[//]: # (- Or username/password: `--username`/`UV_PUBLISH_USERNAME` and `--password`/`UV_PUBLISH_PASSWORD`)
