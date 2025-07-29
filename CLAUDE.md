@@ -26,7 +26,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `SPOTIFY_CLIENT_ID` - Spotify API Client ID
 - `SPOTIFY_CLIENT_SECRET` - Spotify API Client Secret  
 - `SPOTIFY_REDIRECT_URI` - Default: http://localhost:8888
-- `LOGGING_PATH` - Optional: Path for additional file logs (analytics use console by default)
+
+### Optional Environment Variables
+- `LOGGING_PATH` - Path for additional file logs (all logging including analytics goes to Claude's MCP console by default)
 
 ### Environment Configuration Priority
 The application uses a sophisticated three-tier configuration system:
@@ -617,3 +619,83 @@ Successfully delivered a state-of-the-art MCP server that:
 - ✅ Enables real-world usage analytics for continuous optimization
 
 The spotify-mcp server is now a comprehensive, production-ready MCP implementation that serves as a reference for optimal MCP server design and Spotify API integration.
+
+## Recent Usage Analysis & Optimization Findings (2025-07-29)
+
+### Log Analysis Summary
+Based on recent MCP server logs, the following usage patterns and optimization opportunities were identified:
+
+#### Common Usage Patterns Observed
+1. **Sequential Search Pattern**: Users frequently perform multiple searches in sequence (hip hop → trap rap → melodic rap → underground hip hop → experimental hip hop)
+2. **Playlist Creation Workflow**: Common pattern of search → select tracks → create playlist → batch add tracks
+3. **Error Pattern**: SpotifyAdvancedSearch tool failed when filters parameter was passed as string instead of dict object
+
+#### Key Optimization Opportunities
+
+**1. Fix SpotifyAdvancedSearch Filter Parsing**
+- **Issue**: `'str' object has no attribute 'get'` error when filters passed as JSON string
+- **Root Cause**: Tool expects dict object but receives string from MCP client
+- **Priority**: HIGH - This is a breaking bug that prevents advanced search functionality
+- **Solution**: Add JSON string parsing in SpotifyAdvancedSearch tool handler
+
+**2. Search Result Consolidation Tool**
+- **Pattern**: Users perform 4-5 related searches for similar queries (different hip hop subgenres)
+- **Opportunity**: Create `SpotifyMultiGenreSearch` composite tool that searches multiple related genres/styles in one call
+- **Benefit**: Reduce 4-5 search calls to 1 composite call (~80% reduction)
+- **Implementation**: Search multiple queries simultaneously and merge/deduplicate results
+
+**3. Smart Playlist Creation from Search Results**
+- **Pattern**: Users search → manually collect track IDs → create playlist → batch add
+- **Opportunity**: Enhance `SpotifySmartPlaylistBuilder` to accept search queries directly
+- **Benefit**: Single tool call replaces 6+ manual steps (search, collect, create, add)
+- **Use Case**: "Create playlist from hip hop 2024, trap rap 2024, melodic rap 2024"
+
+**4. Search Result Caching & Recommendations**
+- **Pattern**: Related searches often return overlapping results
+- **Opportunity**: Cache search results and suggest related genres/artists
+- **Implementation**: Add `include_related_searches` parameter to search tools
+- **Benefit**: Reduce API calls for similar searches, provide discovery suggestions
+
+#### Performance Metrics from Session
+- **Total Tool Calls**: 17 calls over session
+- **Most Used**: SpotifySearch (5 calls), SpotifyBatchPlaylistOperations (1 call), SpotifyPlaylistManage (1 call)
+- **Error Rate**: 6% (1 failed call out of 17)
+- **Batching Efficiency**: Good use of SpotifyBatchPlaylistOperations for adding 30 tracks at once
+
+#### Immediate Action Items
+
+**Critical Fixes:**
+- [ ] Fix SpotifyAdvancedSearch JSON string parsing bug
+- [ ] Test filter parameter handling with various input formats
+- [ ] Add validation for filter parameter types
+
+**Optimization Enhancements:**
+- [ ] Implement SpotifyMultiGenreSearch composite tool for related searches
+- [ ] Enhance SpotifySmartPlaylistBuilder to accept search queries as seeds
+- [ ] Add search result caching mechanism for related queries
+- [ ] Implement "related searches" suggestions in search results
+
+**Analytics Improvements:**
+- [ ] Add more detailed error tracking for failed tool calls
+- [ ] Implement search pattern analysis for automatic optimization suggestions
+- [ ] Track most common search-to-playlist workflows for composite tool development
+
+### Real-World Usage Insights
+
+**User Behavior:**
+- Users explore music by genre/subgenre in systematic way
+- Playlist creation follows predictable search → curate → create workflow  
+- Advanced search features are desired but currently broken
+
+**API Efficiency:**
+- Batch operations are being used effectively (30 tracks added in single call)
+- Multiple individual searches could be consolidated into composite operations
+- Error handling needs improvement for better user experience
+
+**Future Development Priorities:**
+1. **Bug Fixes**: Fix advanced search filter parsing (blocking users)
+2. **Workflow Optimization**: Multi-search tools for genre exploration
+3. **Smart Playlist Features**: Direct search-to-playlist creation
+4. **Error Resilience**: Better input validation and error recovery
+
+This analysis demonstrates the value of usage analytics for continuous improvement and shows clear optimization paths based on real user workflows.
