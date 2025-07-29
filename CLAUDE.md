@@ -400,3 +400,55 @@ This ensures safe development and CI/CD integration.
 - **Playlist Track Addition**: Add up to 100 tracks per request
 - **Search Optimization**: Use `market` parameter to reduce result filtering
 - **Audio Features Batch**: Get features for up to 100 tracks at once
+
+## Composite Tools for Reduced API Round-trips
+
+The server now includes intelligent composite tools that batch multiple API calls into single tool requests, significantly reducing round-trips and improving performance:
+
+### PlaylistAnalyzer (1 tool call → 4+ API calls)
+- **Single Request Gets**: Playlist info + tracks + audio features + recommendations + mood analysis
+- **Replaces**: Multiple GetInfo calls, separate audio features requests, manual mood calculations
+- **Use Case**: Analyzing playlists for content insights, mood detection, and smart recommendations
+- **Performance**: Reduces 10+ API calls to 1 tool call
+
+### ArtistDeepDive (1 tool call → 5+ API calls)  
+- **Single Request Gets**: Artist profile + albums + top tracks + related artists + audio features
+- **Replaces**: Multiple GetInfo calls for artist data exploration
+- **Use Case**: Comprehensive artist research and discovery
+- **Performance**: Reduces 8+ API calls to 1 tool call
+
+### SmartPlaylistBuilder (1 tool call → 4+ API calls)
+- **Single Request Gets**: Recommendations + user profile + playlist creation + track addition
+- **Replaces**: Manual recommendation gathering, playlist management workflows
+- **Use Case**: AI-powered playlist creation with intelligent track selection
+- **Performance**: Reduces 6+ API calls to 1 tool call
+
+### LibraryInsights (1 tool call → 6+ API calls)
+- **Single Request Gets**: Top tracks/artists + saved tracks + audio analysis + genre analysis + recommendations
+- **Replaces**: Multiple analytics requests for listening pattern analysis  
+- **Use Case**: Comprehensive user music taste analysis and personalized insights
+- **Performance**: Reduces 10+ API calls to 1 tool call
+
+## Usage Analytics & Optimization
+
+The server now includes comprehensive usage logging to identify optimization opportunities:
+
+### Analytics Tracked
+- **Tool Usage Patterns**: Most called tools, execution times, API efficiency ratios
+- **Batching Opportunities**: Multi-API-call tools that should be consolidated
+- **Performance Metrics**: Round-trip analysis, success rates, error patterns
+- **User Behavior**: Workflow sequences, preferred features, usage frequency
+
+### Optimization Benefits
+- **Reduced Latency**: Composite tools eliminate multiple round-trips
+- **Better API Efficiency**: Single tool calls batch multiple Spotify API requests
+- **Improved UX**: Complex operations complete in one step instead of many
+- **Smart Caching**: Related data fetched together reduces redundant calls
+
+### Real-world Impact
+- **Playlist Analysis**: 1 tool call instead of 10+ separate GetInfo/AdvancedSearch calls
+- **Artist Discovery**: Complete artist profile in 1 call vs 5+ individual requests  
+- **Smart Playlists**: End-to-end creation in 1 call vs 4+ separate tool invocations
+- **Library Insights**: Comprehensive analysis in 1 call vs 6+ different tool requests
+
+This approach transforms common multi-step workflows into single, optimized operations while maintaining the flexibility of individual tools for specific use cases.

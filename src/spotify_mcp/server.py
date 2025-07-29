@@ -6,6 +6,8 @@ import json
 from typing import List, Optional, Tuple, Dict, Any, cast
 from datetime import datetime
 from pathlib import Path
+import time
+from collections import defaultdict
 
 import mcp.types as types
 from mcp.server import NotificationOptions, Server, stdio_server
@@ -19,6 +21,81 @@ from .errors import SpotifyMCPError, SpotifyMCPErrorCode, handle_spotify_error
 # Global state for tracking playback changes
 _last_playback_state: Optional[Dict[str, Any]] = None
 _notification_task: Optional[asyncio.Task] = None
+
+# Usage analytics tracking
+_usage_stats = {
+    "tool_calls": defaultdict(int),
+    "tool_call_sequences": [],
+    "session_start": time.time(),
+    "api_call_counts": defaultdict(int),
+    "batch_opportunities": []
+}
+
+
+def log_tool_usage(tool_name: str, arguments: Dict[str, Any], execution_time: float, api_calls_made: List[str]) -> None:
+    """Log tool usage for analytics and optimization."""
+    global _usage_stats
+    
+    timestamp = time.time()
+    _usage_stats["tool_calls"][tool_name] += 1
+    _usage_stats["tool_call_sequences"].append({
+        "timestamp": timestamp,
+        "tool": tool_name,
+        "execution_time": execution_time,
+        "api_calls": api_calls_made,
+        "args_complexity": len(arguments)
+    })
+    
+    # Track API call patterns
+    for api_call in api_calls_made:
+        _usage_stats["api_call_counts"][api_call] += 1
+    
+    # Detect potential batching opportunities
+    if len(api_calls_made) > 1:
+        _usage_stats["batch_opportunities"].append({
+            "tool": tool_name,
+            "api_calls": api_calls_made,
+            "timestamp": timestamp
+        })
+    
+    # Log usage analytics periodically
+    if len(_usage_stats["tool_call_sequences"]) % 10 == 0:
+        log_usage_analytics()
+
+
+def log_usage_analytics() -> None:
+    """Log comprehensive usage analytics for optimization insights."""
+    analytics_logger = logging.getLogger("spotify_mcp.analytics")
+    
+    session_duration = time.time() - _usage_stats["session_start"]
+    total_calls = sum(_usage_stats["tool_calls"].values())
+    
+    # Most used tools
+    top_tools = sorted(_usage_stats["tool_calls"].items(), key=lambda x: x[1], reverse=True)[:5]
+    
+    # API efficiency metrics
+    total_api_calls = sum(_usage_stats["api_call_counts"].values())
+    api_efficiency = total_calls / max(total_api_calls, 1)
+    
+    # Batching opportunities
+    batch_potential = len(_usage_stats["batch_opportunities"])
+    
+    analytics_report = {
+        "session_duration_minutes": round(session_duration / 60, 2),
+        "total_tool_calls": total_calls,
+        "total_api_calls": total_api_calls,
+        "api_efficiency_ratio": round(api_efficiency, 3),
+        "top_tools": top_tools,
+        "batch_opportunities": batch_potential,
+        "most_called_apis": sorted(_usage_stats["api_call_counts"].items(), key=lambda x: x[1], reverse=True)[:5]
+    }
+    
+    analytics_logger.info(f"Usage Analytics: {json.dumps(analytics_report, indent=2)}")
+    
+    # Log specific batching opportunities
+    if _usage_stats["batch_opportunities"]:
+        recent_batches = _usage_stats["batch_opportunities"][-5:]
+        analytics_logger.info(f"Recent Batch Opportunities: {json.dumps(recent_batches, indent=2)}")
 
 
 def setup_logger() -> logging.Logger:
@@ -214,6 +291,47 @@ class LibraryOperations(ToolModel):
     track_ids: Optional[List[str]] = Field(default=None, description="Track IDs for save/remove operations (up to 50)")
     get_all_items: bool = Field(default=False, description="Fetch entire library (use carefully)")
     include_audio_features: bool = Field(default=False, description="Include audio features for tracks")
+
+
+class PlaylistAnalyzer(ToolModel):
+    """Comprehensive playlist analysis in a single API call - tracks, audio features, recommendations, and insights."""
+    playlist_id: str = Field(description="Playlist ID to analyze")
+    include_audio_features: bool = Field(default=True, description="Include audio feature analysis for all tracks")
+    include_recommendations: bool = Field(default=True, description="Generate recommendations based on playlist content")
+    include_mood_analysis: bool = Field(default=True, description="Analyze overall playlist mood and energy")
+    track_limit: int = Field(default=100, description="Max tracks to analyze (for performance)")
+    recommendation_count: int = Field(default=10, description="Number of recommendations to generate")
+
+
+class ArtistDeepDive(ToolModel):
+    """Complete artist analysis - profile, albums, top tracks, related artists, and audio features in one call."""
+    artist_id: str = Field(description="Spotify artist ID")
+    include_albums: bool = Field(default=True, description="Include artist's albums")
+    include_top_tracks: bool = Field(default=True, description="Include top tracks with audio features")
+    include_related_artists: bool = Field(default=True, description="Include related artists")
+    include_audio_analysis: bool = Field(default=True, description="Include audio features for top tracks")
+    market: Optional[str] = Field(default=None, description="Market for track availability")
+
+
+class SmartPlaylistBuilder(ToolModel):
+    """Intelligent playlist creation using multiple API calls optimized for single request."""
+    name: str = Field(description="Playlist name")
+    description: Optional[str] = Field(default=None, description="Playlist description")
+    seed_data: Dict[str, Any] = Field(description="Seeds: tracks, artists, genres, or mood preferences")
+    target_length: int = Field(default=30, description="Target number of tracks")
+    diversity_level: str = Field(default="balanced", description="Diversity: focused, balanced, or diverse")
+    include_audio_matching: bool = Field(default=True, description="Use audio features for better matching")
+    auto_create: bool = Field(default=True, description="Automatically create the playlist")
+
+
+class LibraryInsights(ToolModel):
+    """Comprehensive library analysis - saved tracks, listening patterns, genre distribution, and recommendations."""
+    analysis_depth: str = Field(default="comprehensive", description="Analysis depth: quick, standard, or comprehensive")
+    include_audio_features: bool = Field(default=True, description="Include audio feature analysis")
+    include_genre_analysis: bool = Field(default=True, description="Analyze genre distribution")
+    include_recommendations: bool = Field(default=True, description="Generate personalized recommendations")
+    time_range: str = Field(default="medium_term", description="Time range for listening data")
+    max_tracks_analyzed: int = Field(default=500, description="Maximum tracks to analyze for performance")
 
 
 @server.list_resources()
@@ -647,6 +765,10 @@ async def handle_list_tools() -> list[types.Tool]:
         PaginatedSearch.as_tool(),
         PlaylistPagination.as_tool(),
         LibraryOperations.as_tool(),
+        PlaylistAnalyzer.as_tool(),
+        ArtistDeepDive.as_tool(),
+        SmartPlaylistBuilder.as_tool(),
+        LibraryInsights.as_tool(),
     ]
     logger.info(f"Available tools: {[tool.name for tool in tools]}")
     return tools
@@ -658,6 +780,11 @@ async def handle_call_tool(
 ) -> List[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Handle tool execution requests."""
     arguments = arguments or {}
+    
+    # Track usage and performance
+    start_time = time.time()
+    api_calls_made = []
+    
     # Ensure all string values are properly typed
     def get_str_arg(args: Dict[str, Any], key: str, default: str = "") -> str:
         val = args.get(key, default)
@@ -1481,13 +1608,334 @@ async def handle_call_tool(
                             text=f"Unknown library operation: {operation}. Supported operations are: get_saved_tracks, get_saved_albums, get_followed_artists, save_tracks, remove_tracks"
                         )]
 
+            case "PlaylistAnalyzer":
+                playlist_id = get_str_arg(arguments, "playlist_id")
+                if not playlist_id:
+                    error = SpotifyMCPError.validation_error("playlist_id", "is required")
+                    return [error.to_mcp_error()]
+                
+                include_audio_features = bool(arguments.get("include_audio_features", True))
+                include_recommendations = bool(arguments.get("include_recommendations", True))
+                include_mood_analysis = bool(arguments.get("include_mood_analysis", True))
+                track_limit = min(get_int_arg(arguments, "track_limit", 100), 1000)
+                recommendation_count = min(get_int_arg(arguments, "recommendation_count", 10), 50)
+                
+                api_calls_made.extend(["playlist_items", "playlist"])
+                
+                # Get playlist info and tracks
+                playlist_info = spotify_client.sp.playlist(playlist_id)
+                tracks_response = spotify_client.sp.playlist_items(playlist_id, limit=track_limit)
+                
+                result = {
+                    "playlist_info": playlist_info,
+                    "track_count": tracks_response.get("total", 0),
+                    "tracks": tracks_response.get("items", [])[:track_limit]
+                }
+                
+                # Get track IDs for additional analysis
+                track_ids = []
+                for item in result["tracks"]:
+                    if item.get("track", {}).get("id"):
+                        track_ids.append(item["track"]["id"])
+                
+                # Add audio features analysis
+                if include_audio_features and track_ids:
+                    api_calls_made.append("audio_features")
+                    # Process in batches of 100
+                    audio_features = []
+                    for i in range(0, len(track_ids), 100):
+                        batch = track_ids[i:i+100]
+                        batch_features = spotify_client.sp.audio_features(batch)
+                        audio_features.extend(batch_features)
+                    result["audio_features"] = audio_features
+                    
+                    # Calculate mood analysis
+                    if include_mood_analysis and audio_features:
+                        valid_features = [f for f in audio_features if f is not None]
+                        if valid_features:
+                            avg_valence = sum(f["valence"] for f in valid_features) / len(valid_features)
+                            avg_energy = sum(f["energy"] for f in valid_features) / len(valid_features)
+                            avg_danceability = sum(f["danceability"] for f in valid_features) / len(valid_features)
+                            avg_acousticness = sum(f["acousticness"] for f in valid_features) / len(valid_features)
+                            
+                            mood_analysis = {
+                                "overall_mood": "happy" if avg_valence > 0.6 else "sad" if avg_valence < 0.4 else "neutral",
+                                "energy_level": "high" if avg_energy > 0.7 else "low" if avg_energy < 0.3 else "medium",
+                                "danceability": "very danceable" if avg_danceability > 0.7 else "not danceable" if avg_danceability < 0.3 else "moderately danceable",
+                                "acoustic_level": "very acoustic" if avg_acousticness > 0.7 else "not acoustic" if avg_acousticness < 0.3 else "mixed acoustic",
+                                "metrics": {
+                                    "avg_valence": round(avg_valence, 3),
+                                    "avg_energy": round(avg_energy, 3),
+                                    "avg_danceability": round(avg_danceability, 3),
+                                    "avg_acousticness": round(avg_acousticness, 3)
+                                }
+                            }
+                            result["mood_analysis"] = mood_analysis
+                
+                # Generate recommendations based on playlist content
+                if include_recommendations and track_ids:
+                    api_calls_made.append("recommendations")
+                    try:
+                        # Use up to 5 random tracks as seeds
+                        import random
+                        seed_tracks = random.sample(track_ids, min(5, len(track_ids)))
+                        recommendations = spotify_client.sp.recommendations(
+                            seed_tracks=seed_tracks,
+                            limit=recommendation_count
+                        )
+                        result["recommendations"] = recommendations.get("tracks", [])
+                    except Exception as e:
+                        logger.warning(f"Failed to get recommendations: {e}")
+                        result["recommendations"] = []
+                
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(result, indent=2)
+                )]
+
+            case "ArtistDeepDive":
+                artist_id = get_str_arg(arguments, "artist_id")
+                if not artist_id:
+                    error = SpotifyMCPError.validation_error("artist_id", "is required")
+                    return [error.to_mcp_error()]
+                
+                include_albums = bool(arguments.get("include_albums", True))
+                include_top_tracks = bool(arguments.get("include_top_tracks", True))
+                include_related_artists = bool(arguments.get("include_related_artists", True))
+                include_audio_analysis = bool(arguments.get("include_audio_analysis", True))
+                market = arguments.get("market")
+                
+                api_calls_made.append("artist")
+                
+                # Get artist info
+                artist_info = spotify_client.sp.artist(artist_id)
+                result = {"artist_info": artist_info}
+                
+                # Get albums
+                if include_albums:
+                    api_calls_made.append("artist_albums")
+                    albums = spotify_client.sp.artist_albums(artist_id, album_type="album,single", market=market, limit=50)
+                    result["albums"] = albums
+                
+                # Get top tracks
+                if include_top_tracks:
+                    api_calls_made.append("artist_top_tracks")
+                    top_tracks = spotify_client.sp.artist_top_tracks(artist_id, country=market or "US")
+                    result["top_tracks"] = top_tracks
+                    
+                    # Add audio features for top tracks
+                    if include_audio_analysis and top_tracks.get("tracks"):
+                        api_calls_made.append("audio_features")
+                        track_ids = [track["id"] for track in top_tracks["tracks"]]
+                        audio_features = spotify_client.sp.audio_features(track_ids)
+                        result["top_tracks_audio_features"] = audio_features
+                
+                # Get related artists
+                if include_related_artists:
+                    api_calls_made.append("artist_related_artists")
+                    related_artists = spotify_client.sp.artist_related_artists(artist_id)
+                    result["related_artists"] = related_artists
+                
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(result, indent=2)
+                )]
+
+            case "SmartPlaylistBuilder":
+                name_arg = get_str_arg(arguments, "name")
+                if not name_arg:
+                    error = SpotifyMCPError.validation_error("name", "is required")
+                    return [error.to_mcp_error()]
+                
+                description = arguments.get("description")
+                seed_data = arguments.get("seed_data", {})
+                target_length = min(get_int_arg(arguments, "target_length", 30), 100)
+                diversity_level = get_str_arg(arguments, "diversity_level", "balanced")
+                include_audio_matching = bool(arguments.get("include_audio_matching", True))
+                auto_create = bool(arguments.get("auto_create", True))
+                
+                result = {"playlist_name": name_arg, "target_length": target_length, "tracks_added": []}
+                
+                # Extract seeds from seed_data
+                seed_tracks = seed_data.get("tracks", [])[:5]
+                seed_artists = seed_data.get("artists", [])[:5]
+                seed_genres = seed_data.get("genres", [])[:5]
+                
+                # Ensure we have at least one seed
+                total_seeds = len(seed_tracks) + len(seed_artists) + len(seed_genres)
+                if total_seeds == 0:
+                    error = SpotifyMCPError.validation_error("seed_data", "must provide at least one seed (tracks, artists, or genres)")
+                    return [error.to_mcp_error()]
+                
+                # Generate recommendations
+                api_calls_made.append("recommendations")
+                rec_params = {
+                    "seed_tracks": seed_tracks,
+                    "seed_artists": seed_artists,
+                    "seed_genres": seed_genres,
+                    "limit": target_length * 2  # Get extra for diversity
+                }
+                
+                # Add audio feature targeting based on diversity level
+                if include_audio_matching:
+                    if diversity_level == "focused":
+                        # More restrictive targeting for focused playlists
+                        rec_params.update({
+                            "min_popularity": 30,
+                            "target_energy": 0.7,
+                            "target_danceability": 0.6
+                        })
+                    elif diversity_level == "diverse":
+                        # Wide range for diverse playlists
+                        rec_params.update({
+                            "min_popularity": 10,
+                            "max_popularity": 90
+                        })
+                
+                recommendations = spotify_client.sp.recommendations(**rec_params)
+                recommended_tracks = recommendations.get("tracks", [])
+                
+                # Select tracks based on diversity level
+                if diversity_level == "focused":
+                    selected_tracks = recommended_tracks[:target_length]
+                elif diversity_level == "diverse":
+                    # Spread selection across the recommendations
+                    step = max(1, len(recommended_tracks) // target_length)
+                    selected_tracks = recommended_tracks[::step][:target_length]
+                else:  # balanced
+                    # Mix of top recommendations and some variety
+                    half = target_length // 2
+                    selected_tracks = recommended_tracks[:half] + recommended_tracks[half*2:half*2+target_length-half]
+                
+                result["selected_tracks"] = selected_tracks
+                result["tracks_added"] = len(selected_tracks)
+                
+                # Create playlist if requested
+                if auto_create:
+                    api_calls_made.extend(["current_user", "user_playlist_create", "playlist_add_items"])
+                    current_user = spotify_client.sp.current_user()
+                    if current_user and "id" in current_user:
+                        playlist = spotify_client.sp.user_playlist_create(
+                            current_user["id"],
+                            name_arg,
+                            description=description or f"Smart playlist with {target_length} tracks"
+                        )
+                        
+                        # Add tracks to playlist
+                        track_uris = [f"spotify:track:{track['id']}" for track in selected_tracks]
+                        if track_uris:
+                            spotify_client.sp.playlist_add_items(playlist["id"], track_uris)
+                        
+                        result["playlist_created"] = True
+                        result["playlist_id"] = playlist["id"]
+                        result["playlist_url"] = playlist["external_urls"]["spotify"]
+                    else:
+                        result["playlist_created"] = False
+                        result["error"] = "Could not get current user information"
+                
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(result, indent=2)
+                )]
+
+            case "LibraryInsights":
+                analysis_depth = get_str_arg(arguments, "analysis_depth", "comprehensive")
+                include_audio_features = bool(arguments.get("include_audio_features", True))
+                include_genre_analysis = bool(arguments.get("include_genre_analysis", True))
+                include_recommendations = bool(arguments.get("include_recommendations", True))
+                time_range = get_str_arg(arguments, "time_range", "medium_term")
+                max_tracks = min(get_int_arg(arguments, "max_tracks_analyzed", 500), 2000)
+                
+                result = {"analysis_depth": analysis_depth, "insights": {}}
+                
+                # Get user's top tracks and artists
+                api_calls_made.extend(["current_user_top_tracks", "current_user_top_artists"])
+                top_tracks = spotify_client.sp.current_user_top_tracks(limit=50, time_range=time_range)
+                top_artists = spotify_client.sp.current_user_top_artists(limit=50, time_range=time_range)
+                
+                result["top_tracks"] = top_tracks
+                result["top_artists"] = top_artists
+                
+                if analysis_depth in ["standard", "comprehensive"]:
+                    # Get saved tracks
+                    api_calls_made.append("current_user_saved_tracks")
+                    saved_tracks = spotify_client.sp.current_user_saved_tracks(limit=min(max_tracks, 50))
+                    result["saved_tracks_sample"] = saved_tracks
+                    
+                    # Get recently played
+                    api_calls_made.append("current_user_recently_played")
+                    recent_tracks = spotify_client.sp.current_user_recently_played(limit=50)
+                    result["recent_tracks"] = recent_tracks
+                
+                # Audio features analysis
+                if include_audio_features and top_tracks.get("items"):
+                    api_calls_made.append("audio_features")
+                    track_ids = [track["id"] for track in top_tracks["items"]]
+                    audio_features = spotify_client.sp.audio_features(track_ids)
+                    
+                    valid_features = [f for f in audio_features if f is not None]
+                    if valid_features:
+                        # Calculate listening preferences
+                        preferences = {
+                            "avg_energy": sum(f["energy"] for f in valid_features) / len(valid_features),
+                            "avg_valence": sum(f["valence"] for f in valid_features) / len(valid_features),
+                            "avg_danceability": sum(f["danceability"] for f in valid_features) / len(valid_features),
+                            "avg_acousticness": sum(f["acousticness"] for f in valid_features) / len(valid_features),
+                            "avg_tempo": sum(f["tempo"] for f in valid_features) / len(valid_features)
+                        }
+                        
+                        result["listening_preferences"] = {
+                            "energy_preference": "high" if preferences["avg_energy"] > 0.6 else "low" if preferences["avg_energy"] < 0.4 else "medium",
+                            "mood_preference": "positive" if preferences["avg_valence"] > 0.6 else "melancholic" if preferences["avg_valence"] < 0.4 else "balanced",
+                            "dance_preference": "very danceable" if preferences["avg_danceability"] > 0.7 else "not danceable" if preferences["avg_danceability"] < 0.3 else "moderately danceable",
+                            "acoustic_preference": "acoustic" if preferences["avg_acousticness"] > 0.5 else "electronic",
+                            "tempo_preference": "fast" if preferences["avg_tempo"] > 120 else "slow" if preferences["avg_tempo"] < 90 else "medium",
+                            "metrics": {k: round(v, 3) for k, v in preferences.items()}
+                        }
+                
+                # Genre analysis
+                if include_genre_analysis:
+                    genre_counts = defaultdict(int)
+                    for artist in top_artists.get("items", []):
+                        for genre in artist.get("genres", []):
+                            genre_counts[genre] += 1
+                    
+                    top_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+                    result["top_genres"] = top_genres
+                
+                # Generate personalized recommendations
+                if include_recommendations and top_tracks.get("items"):
+                    api_calls_made.append("recommendations")
+                    # Use top tracks as seeds
+                    seed_tracks = [track["id"] for track in top_tracks["items"][:5]]
+                    recommendations = spotify_client.sp.recommendations(
+                        seed_tracks=seed_tracks,
+                        limit=20
+                    )
+                    result["personalized_recommendations"] = recommendations.get("tracks", [])
+                
+                # Log usage analytics
+                execution_time = time.time() - start_time
+                log_tool_usage(name, arguments, execution_time, api_calls_made)
+                
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(result, indent=2)
+                )]
+
             case _:
                 error_msg = f"Unknown tool: {name}"
                 logger.error(error_msg)
-                return [types.TextContent(
+                result = [types.TextContent(
                     type="text",
                     text=error_msg
                 )]
+                
+                # Log usage analytics
+                execution_time = time.time() - start_time
+                log_tool_usage(name, arguments, execution_time, api_calls_made)
+                
+                return result
 
     except SpotifyException as se:
         error_msg = f"Spotify Client error occurred: {str(se)}"
