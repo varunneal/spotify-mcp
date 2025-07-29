@@ -22,6 +22,54 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Debugging
 - `npx @modelcontextprotocol/inspector uv --directory /path/to/spotify_mcp run spotify-mcp` - Launch MCP Inspector for debugging
 
+### Git Workflow & Development Process
+
+**When working on this repository, follow this development workflow:**
+
+1. **Read Current Status**: Always start by reading the latest TODO items and status in this CLAUDE.md file
+2. **Work Through TODOs**: If no other instructions provided, work through the "Immediate Action Items" section systematically
+3. **Quality Gates**: Before any commit, ALWAYS run:
+   - `uv run mypy src/` - Type checking must pass
+   - `uv run pytest` - All tests must pass
+   - Only commit when code is working and validated
+4. **Commit Strategy**: Make focused, single-purpose commits:
+   - One commit per bug fix, feature, or optimization
+   - Use descriptive commit messages explaining the "why" not just "what"
+   - Include the standard footer in all commits
+5. **Documentation Updates**: Update CLAUDE.md with:
+   - Current development status
+   - New TODO items discovered during implementation
+   - Completed work and performance impacts
+   - Update frequency: After major features, not every small commit
+
+**Commit Message Format:**
+```
+Brief description of change (imperative mood)
+
+More detailed explanation of what and why this change was made.
+Include performance impacts, API changes, or user-facing improvements.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+**Development Cycle:**
+1. Check current TODOs in CLAUDE.md "Immediate Action Items"
+2. Implement one focused change (bug fix, feature, optimization)
+3. Run type checking: `uv run mypy src/`
+4. Run tests: `uv run pytest`
+5. Commit with descriptive message if all checks pass
+6. Move to next TODO item
+7. Update CLAUDE.md status after completing major milestones
+
+**Quality Standards:**
+- No commits with failing type checks or tests
+- Each commit should be a complete, working unit
+- Prefer smaller, focused commits over large changes
+- Always validate changes work before committing
+- Update documentation when adding new features or changing behavior
+
 ### Required Environment Variables
 - `SPOTIFY_CLIENT_ID` - Spotify API Client ID
 - `SPOTIFY_CLIENT_SECRET` - Spotify API Client Secret  
