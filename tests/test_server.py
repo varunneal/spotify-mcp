@@ -141,7 +141,13 @@ class TestCallTool:
         
         assert len(result) == 1
         assert isinstance(result[0], types.TextContent)
-        assert "query is required" in result[0].text
+        
+        # Parse the JSON error response
+        import json
+        parsed_response = json.loads(result[0].text)
+        assert parsed_response["error"]["code"] == "validation_error"
+        assert "query" in parsed_response["error"]["message"]
+        assert "required" in parsed_response["error"]["message"]
     
     @pytest.mark.asyncio
     @patch('spotify_mcp.server.spotify_client')

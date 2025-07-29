@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, AnyUrl
 from spotipy import SpotifyException
 
 from . import spotify_api
+from .errors import SpotifyMCPError, SpotifyMCPErrorCode, handle_spotify_error
 
 
 # Global state for tracking playback changes
@@ -287,16 +288,23 @@ async def handle_call_tool(
                         logger.info(f"Starting playback with arguments: {arguments}")
                         track_id = arguments.get("track_id")
                         if track_id is not None and not isinstance(track_id, str):
+                            error = SpotifyMCPError.validation_error("track_id", "must be a string if provided")
+                            return [error.to_mcp_error()]
+                        
+                        try:
+                            # Check for active device first
+                            if not spotify_client.is_active_device():
+                                raise SpotifyMCPError.no_active_device()
+                            
+                            spotify_client.start_playback(track_id=str(track_id) if track_id else None)
+                            logger.info("Playback started successfully")
                             return [types.TextContent(
                                 type="text",
-                                text="track_id must be a string if provided"
+                                text="Playback started successfully."
                             )]
-                        spotify_client.start_playback(track_id=str(track_id) if track_id else None)
-                        logger.info("Playback started successfully")
-                        return [types.TextContent(
-                            type="text",
-                            text="Playback starting with no errors."
-                        )]
+                        except SpotifyException as e:
+                            error = SpotifyMCPError.from_spotify_exception(e)
+                            return [error.to_mcp_error()]
                     case "pause":
                         logger.info("Attempting to pause playback")
                         spotify_client.pause_playback()
@@ -323,20 +331,27 @@ async def handle_call_tool(
                 logger.info(f"Performing search with arguments: {arguments}")
                 query = get_str_arg(arguments, "query")
                 if not query:
+                    error = SpotifyMCPError.validation_error("query", "is required for search")
+                    return [error.to_mcp_error()]
+                
+                if len(query.strip()) < 2:
+                    error = SpotifyMCPError.validation_error("query", "must be at least 2 characters long")
+                    return [error.to_mcp_error()]
+                
+                try:
+                    search_results = spotify_client.search(
+                        query=query,
+                        qtype=get_str_arg(arguments, "qtype", "track"),
+                        limit=get_int_arg(arguments, "limit", 10)
+                    )
+                    logger.info("Search completed successfully")
                     return [types.TextContent(
                         type="text",
-                        text="query is required"
+                        text=json.dumps(search_results, indent=2)
                     )]
-                search_results = spotify_client.search(
-                    query=query,
-                    qtype=get_str_arg(arguments, "qtype", "track"),
-                    limit=get_int_arg(arguments, "limit", 10)
-                )
-                logger.info("Search completed successfully")
-                return [types.TextContent(
-                    type="text",
-                    text=json.dumps(search_results, indent=2)
-                )]
+                except SpotifyException as e:
+                    error = SpotifyMCPError.from_spotify_exception(e)
+                    return [error.to_mcp_error()]
 
             case "Queue":
                 logger.info(f"Queue operation with arguments: {arguments}")
