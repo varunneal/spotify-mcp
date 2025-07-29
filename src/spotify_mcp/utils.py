@@ -1,9 +1,29 @@
 from collections import defaultdict
 import functools
 from typing import Callable, TypeVar, Optional, Dict, List, Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse, urlunparse
 
 T = TypeVar('T')
+
+
+def normalize_redirect_uri(url: str) -> str:
+    """Normalize redirect URI to meet Spotify's requirements.
+    
+    Converts localhost to 127.0.0.1 for better Spotify API compatibility.
+    """
+    if not url:
+        return url
+        
+    parsed = urlparse(url)
+    
+    # Convert localhost to 127.0.0.1
+    if parsed.netloc == 'localhost' or parsed.netloc.startswith('localhost:'):
+        port = ''
+        if ':' in parsed.netloc:
+            port = ':' + parsed.netloc.split(':')[1]
+        parsed = parsed._replace(netloc=f'127.0.0.1{port}')
+    
+    return urlunparse(parsed)
 
 
 def parse_track(track_item: Optional[Dict[str, Any]], detailed: bool = False) -> Optional[Dict[str, Any]]:
@@ -190,7 +210,7 @@ def validate(func: Callable[..., T]) -> Callable[..., T]:
     """
 
     @functools.wraps(func)
-    def wrapper(self, *args, **kwargs) -> T:
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> T:
         # Handle authentication
         if not self.auth_ok():
             self.auth_refresh()

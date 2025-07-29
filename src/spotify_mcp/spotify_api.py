@@ -10,9 +10,10 @@ from spotipy.cache_handler import CacheFileHandler
 from spotipy.oauth2 import SpotifyOAuth
 
 from . import utils
+from .utils import normalize_redirect_uri
 
 
-def load_config() -> Dict[str, str]:
+def load_config() -> Dict[str, Optional[str]]:
     """Load configuration with precedence: env vars > .env file > pyproject.toml defaults."""
     # First try environment variables and .env file
     load_dotenv()
@@ -46,7 +47,7 @@ def load_config() -> Dict[str, str]:
 config = load_config()
 CLIENT_ID = config["CLIENT_ID"]
 CLIENT_SECRET = config["CLIENT_SECRET"]
-REDIRECT_URI = config["REDIRECT_URI"]
+REDIRECT_URI = normalize_redirect_uri(config["REDIRECT_URI"]) if config["REDIRECT_URI"] else None
 
 # Define all required scopes
 SCOPES = [
@@ -201,7 +202,7 @@ class Client:
 
             result = self.sp.start_playback(uris=uris, device_id=device_id)
             self.logger.info(f"Playback started successfully{' for track_id: ' + track_id if track_id else ''}")
-            return result
+            return result or {}
         except Exception as e:
             self.logger.error(f"Error starting playback: {str(e)}", exc_info=True)
             raise
@@ -235,7 +236,7 @@ class Client:
         queue_info['queue'] = [track_info for track in queue
                              if (track_info := utils.parse_track(track)) is not None]
 
-        return queue_info
+        return queue_info or {}
 
     def get_liked_songs(self) -> List[Dict[str, Any]]:
         results = self.sp.current_user_saved_tracks()
@@ -282,7 +283,7 @@ class Client:
         try:
             result = self.auth_manager.is_token_expired(self.cache_handler.get_cached_token())
             self.logger.info(f"Auth check result: {'valid' if not result else 'expired'}")
-            return result
+            return not result
         except Exception as e:
             self.logger.error(f"Error checking auth status: {str(e)}", exc_info=True)
             raise

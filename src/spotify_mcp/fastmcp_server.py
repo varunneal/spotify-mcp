@@ -332,6 +332,51 @@ def get_user_playlists(limit: int = 20) -> List[Playlist]:
         raise convert_spotify_error(e)
 
 
+@mcp.tool()
+def remove_tracks_from_playlist(playlist_id: str, track_uris: List[str]) -> Dict[str, str]:
+    """Remove tracks from a playlist.
+    
+    Args:
+        playlist_id: Playlist ID
+        track_uris: List of track URIs to remove
+    """
+    try:
+        # Convert track IDs to URIs if needed
+        uris = [uri if uri.startswith("spotify:track:") else f"spotify:track:{uri}" for uri in track_uris]
+        
+        spotify_client.playlist_remove_all_occurrences_of_items(playlist_id, uris)
+        return {"status": "success", "message": f"Removed {len(uris)} tracks from playlist"}
+        
+    except SpotifyException as e:
+        raise convert_spotify_error(e)
+
+
+@mcp.tool()
+def modify_playlist_details(playlist_id: str, name: Optional[str] = None, description: Optional[str] = None, public: Optional[bool] = None) -> Dict[str, str]:
+    """Modify playlist details.
+    
+    Args:
+        playlist_id: Playlist ID
+        name: New playlist name (optional)
+        description: New playlist description (optional)
+        public: Whether playlist should be public (optional)
+    """
+    try:
+        if not name and not description and public is None:
+            raise ValueError("At least one of name, description, or public must be provided")
+            
+        spotify_client.playlist_change_details(
+            playlist_id, 
+            name=name, 
+            description=description,
+            public=public
+        )
+        return {"status": "success", "message": "Playlist details updated successfully"}
+        
+    except SpotifyException as e:
+        raise convert_spotify_error(e)
+
+
 # === RESOURCES ===
 
 @mcp.resource("spotify://user/current")
