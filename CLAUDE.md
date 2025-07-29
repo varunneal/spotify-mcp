@@ -355,3 +355,48 @@ All tests use mocked Spotify clients and environment variables, so they can run 
 - Spotify Premium account
 
 This ensures safe development and CI/CD integration.
+
+## External API Documentation & References
+
+### Spotify Web API Documentation
+- **Main Documentation**: https://developer.spotify.com/documentation/web-api
+- **Authentication Guide**: https://developer.spotify.com/documentation/web-api/tutorials/getting-started
+- **API Reference**: https://developer.spotify.com/documentation/web-api/reference
+- **Rate Limiting**: https://developer.spotify.com/documentation/web-api/concepts/rate-limits
+- **Scopes & Authorization**: https://developer.spotify.com/documentation/web-api/concepts/scopes
+
+### Key Spotify API Endpoints Used
+- **Search**: `GET /v1/search` - Search for tracks, albums, artists, playlists
+- **Player**: `GET/PUT /v1/me/player` - Get/control playback state
+- **Tracks**: `GET /v1/tracks/{ids}` - Get multiple tracks in one call
+- **Playlists**: `POST /v1/playlists/{id}/tracks` - Add tracks to playlist
+- **Recommendations**: `GET /v1/recommendations` - Get track recommendations
+- **User Profile**: `GET /v1/me` - Current user profile
+
+### MCP Protocol Documentation
+- **MCP Specification**: https://modelcontextprotocol.io/specification
+- **Python SDK**: https://github.com/modelcontextprotocol/python-sdk
+- **Tools Reference**: https://modelcontextprotocol.io/llms-full.txt
+- **Resources & Prompts**: https://modelcontextprotocol.io/docs/concepts/resources
+- **Server Implementation**: https://modelcontextprotocol.io/docs/tools/servers
+
+### Python Library References
+- **spotipy**: https://spotipy.readthedocs.io/en/2.24.0/
+- **pydantic**: https://docs.pydantic.dev/latest/
+- **mcp**: https://mcp-python.readthedocs.io/
+- **pytest**: https://docs.pytest.org/en/stable/
+- **mypy**: https://mypy.readthedocs.io/en/stable/
+
+### Advanced Spotify API Features to Implement
+- **Audio Features**: `GET /v1/audio-features/{ids}` - Get audio characteristics
+- **Audio Analysis**: `GET /v1/audio-analysis/{id}` - Detailed audio analysis
+- **Recently Played**: `GET /v1/me/player/recently-played` - User's playback history
+- **Top Items**: `GET /v1/me/top/{type}` - User's top artists and tracks
+- **Available Markets**: Consider market availability for tracks/albums
+- **Followed Artists**: `GET /v1/me/following` - Artists user follows
+
+### Batch API Optimization Patterns
+- **Multiple Track Info**: Use `ids` parameter (up to 50 tracks per request)
+- **Playlist Track Addition**: Add up to 100 tracks per request
+- **Search Optimization**: Use `market` parameter to reduce result filtering
+- **Audio Features Batch**: Get features for up to 100 tracks at once

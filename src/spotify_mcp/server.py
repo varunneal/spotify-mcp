@@ -145,6 +145,77 @@ class PlaylistCover(ToolModel):
     image_data: Optional[str] = Field(default=None, description="Base64-encoded JPEG image data (required for upload action)")
 
 
+class BatchTrackInfo(ToolModel):
+    """Get detailed information for multiple tracks at once (up to 50 tracks). Includes audio features, popularity, and market availability."""
+    track_ids: List[str] = Field(description="List of Spotify track IDs (up to 50)")
+    include_audio_features: bool = Field(default=False, description="Include audio features analysis")
+    market: Optional[str] = Field(default=None, description="Market code for track availability")
+
+
+class BatchPlaylistOperations(ToolModel):
+    """Perform batch operations on playlists - efficiently add/remove/replace multiple tracks in one API call (up to 100 tracks)."""
+    action: str = Field(description="Action: 'add_tracks', 'remove_tracks', 'replace_tracks'")
+    playlist_id: str = Field(description="ID of the playlist")
+    track_uris: List[str] = Field(description="List of Spotify track URIs (up to 100)")
+    position: Optional[int] = Field(default=None, description="Position to insert tracks (for add_tracks)")
+    snapshot_id: Optional[str] = Field(default=None, description="Playlist snapshot ID for consistency")
+
+
+class RecommendationEngine(ToolModel):
+    """Get AI-powered music recommendations with advanced audio feature targeting. Perfect for playlist creation and music discovery."""
+    seed_tracks: Optional[List[str]] = Field(default=None, description="Up to 5 seed track IDs")
+    seed_artists: Optional[List[str]] = Field(default=None, description="Up to 5 seed artist IDs") 
+    seed_genres: Optional[List[str]] = Field(default=None, description="Up to 5 seed genres")
+    limit: int = Field(default=20, description="Number of recommendations (1-100)")
+    market: Optional[str] = Field(default=None, description="Market for track availability")
+    target_acousticness: Optional[float] = Field(default=None, description="Target acousticness (0.0-1.0)")
+    target_danceability: Optional[float] = Field(default=None, description="Target danceability (0.0-1.0)")
+    target_energy: Optional[float] = Field(default=None, description="Target energy (0.0-1.0)")
+    target_valence: Optional[float] = Field(default=None, description="Target valence/positivity (0.0-1.0)")
+    target_tempo: Optional[float] = Field(default=None, description="Target tempo (BPM)")
+    min_popularity: Optional[int] = Field(default=None, description="Minimum popularity (0-100)")
+    max_popularity: Optional[int] = Field(default=None, description="Maximum popularity (0-100)")
+
+
+class UserAnalytics(ToolModel):
+    """Get user listening analytics, top content, and musical preferences. Provides insights into listening patterns and taste."""
+    analysis_type: str = Field(description="Type: 'top_artists', 'top_tracks', 'recently_played', 'listening_stats'")
+    time_range: str = Field(default="medium_term", description="Time range: 'short_term', 'medium_term', 'long_term'")
+    limit: int = Field(default=20, description="Number of items to return (max 50)")
+    include_audio_features: bool = Field(default=False, description="Include audio feature analysis")
+
+
+class PaginatedSearch(ToolModel):
+    """Perform paginated search across large result sets. Efficiently handles searches with thousands of results."""
+    query: str = Field(description="Search query")
+    qtype: str = Field(default="track", description="Search type: track, artist, album, or playlist")
+    limit: int = Field(default=20, description="Items per page (max 50)")
+    offset: int = Field(default=0, description="Starting position (for pagination)")
+    market: Optional[str] = Field(default=None, description="Market code for availability filtering")
+    get_all_pages: bool = Field(default=False, description="Fetch all available results (use carefully for large datasets)")
+    max_results: int = Field(default=1000, description="Maximum results when get_all_pages=True")
+
+
+class PlaylistPagination(ToolModel):
+    """Get playlist items with pagination support for large playlists (10,000+ tracks)."""
+    playlist_id: str = Field(description="Playlist ID")
+    limit: int = Field(default=50, description="Items per page (max 100)")
+    offset: int = Field(default=0, description="Starting position")
+    get_all_tracks: bool = Field(default=False, description="Fetch all tracks in playlist")
+    include_audio_features: bool = Field(default=False, description="Include audio features for tracks")
+    fields: Optional[str] = Field(default=None, description="Specific fields to retrieve (Spotify field filter)")
+
+
+class LibraryOperations(ToolModel):
+    """Advanced library operations with pagination and batch processing."""
+    operation: str = Field(description="Operation: 'get_saved_tracks', 'get_saved_albums', 'get_followed_artists', 'save_tracks', 'remove_tracks'")
+    limit: int = Field(default=20, description="Items per page (max 50)")
+    offset: int = Field(default=0, description="Starting position for pagination")
+    track_ids: Optional[List[str]] = Field(default=None, description="Track IDs for save/remove operations (up to 50)")
+    get_all_items: bool = Field(default=False, description="Fetch entire library (use carefully)")
+    include_audio_features: bool = Field(default=False, description="Include audio features for tracks")
+
+
 @server.list_resources()
 async def handle_list_resources() -> list[types.Resource]:
     """List available MCP resources."""
@@ -177,6 +248,320 @@ async def handle_list_resources() -> list[types.Resource]:
     ]
     logger.info(f"Available resources: {[r.name for r in resources]}")
     return resources
+
+
+@server.list_prompts()
+async def handle_list_prompts() -> list[types.Prompt]:
+    """List available MCP prompts for common workflows."""
+    logger.info("Listing available prompts")
+    prompts = [
+        types.Prompt(
+            name="create_mood_playlist",
+            description="Create a playlist based on mood, genre, and preferences",
+            arguments=[
+                types.PromptArgument(
+                    name="mood",
+                    description="Target mood (e.g., happy, sad, energetic, chill)",
+                    required=True
+                ),
+                types.PromptArgument(
+                    name="genre",
+                    description="Preferred genre (optional)",
+                    required=False
+                ),
+                types.PromptArgument(
+                    name="decade",
+                    description="Preferred decade (e.g., 2020s, 90s, 80s)",
+                    required=False
+                )
+            ]
+        ),
+        types.Prompt(
+            name="discover_similar_music",
+            description="Discover music similar to a given artist or track",
+            arguments=[
+                types.PromptArgument(
+                    name="reference",
+                    description="Artist name or track name to base recommendations on",
+                    required=True
+                ),
+                types.PromptArgument(
+                    name="discovery_level",
+                    description="How adventurous: mainstream, balanced, or deep_cuts",
+                    required=False
+                )
+            ]
+        ),
+        types.Prompt(
+            name="party_playlist_generator",
+            description="Generate a party playlist with crowd-pleasing tracks",
+            arguments=[
+                types.PromptArgument(
+                    name="party_type",
+                    description="Type of party (house_party, dance_party, dinner_party, etc.)",
+                    required=True
+                ),
+                types.PromptArgument(
+                    name="duration_hours",
+                    description="Desired playlist duration in hours",
+                    required=False
+                )
+            ]
+        ),
+        types.Prompt(
+            name="workout_playlist_builder",
+            description="Build an energizing workout playlist",
+            arguments=[
+                types.PromptArgument(
+                    name="workout_type",
+                    description="Type of workout (cardio, strength, yoga, running, etc.)",
+                    required=True
+                ),
+                types.PromptArgument(
+                    name="intensity",
+                    description="Intensity level (low, medium, high)",
+                    required=False
+                )
+            ]
+        ),
+        types.Prompt(
+            name="focus_music_curator",
+            description="Curate instrumental/ambient music for focus and productivity",
+            arguments=[
+                types.PromptArgument(
+                    name="focus_type",
+                    description="Type of focus work (coding, studying, writing, creative)",
+                    required=True
+                ),
+                types.PromptArgument(
+                    name="noise_level",
+                    description="Preferred noise level (minimal, ambient, moderate)",
+                    required=False
+                )
+            ]
+        )
+    ]
+    logger.info(f"Available prompts: {[p.name for p in prompts]}")
+    return prompts
+
+
+@server.get_prompt()
+async def handle_get_prompt(name: str, arguments: Optional[Dict[str, str]]) -> types.GetPromptResult:
+    """Handle prompt requests with dynamic content generation."""
+    logger.info(f"Getting prompt: {name} with arguments: {arguments}")
+    
+    try:
+        if name == "create_mood_playlist":
+            mood = arguments.get("mood", "happy") if arguments else "happy"
+            genre = arguments.get("genre", "") if arguments else ""
+            decade = arguments.get("decade", "") if arguments else ""
+            
+            genre_filter = f" genre:{genre}" if genre else ""
+            year_filter = f" year:{decade}" if decade else ""
+            
+            prompt_content = f"""Create a {mood} mood playlist with the following approach:
+
+1. Search for {mood} music{genre_filter}{year_filter}:
+   - Use AdvancedSearch with query: "{mood} music" 
+   - Apply filters: {{"genre": "{genre}", "year": "{decade}"}} if specified
+   - Set include_recommendations: true for AI-powered suggestions
+
+2. Build the playlist:
+   - Create a new playlist with name: "{mood.title()} Vibes{f' - {genre.title()}' if genre else ''}"
+   - Add 20-30 tracks that match the {mood} mood
+   - Include a mix of popular and discovery tracks
+
+3. Enhance the experience:
+   - Add a descriptive playlist description
+   - Consider track flow and energy progression
+   - End with a satisfying conclusion track
+
+The goal is to create a cohesive {mood} experience that resonates emotionally."""
+
+            return types.GetPromptResult(
+                description=f"Workflow for creating a {mood} mood playlist",
+                messages=[
+                    types.PromptMessage(
+                        role="user",
+                        content=types.TextContent(type="text", text=prompt_content)
+                    )
+                ]
+            )
+            
+        elif name == "discover_similar_music":
+            reference = arguments.get("reference", "your favorite artist") if arguments else "your favorite artist"
+            discovery_level = arguments.get("discovery_level", "balanced") if arguments else "balanced"
+            
+            discovery_settings = {
+                "mainstream": "focus on popular tracks and well-known artists",
+                "balanced": "mix popular and lesser-known tracks",
+                "deep_cuts": "prioritize lesser-known tracks and emerging artists"
+            }
+            
+            prompt_content = f"""Discover music similar to "{reference}" with {discovery_level} discovery approach:
+
+1. Initial Search:
+   - Use Search tool with query: "{reference}"
+   - Identify the artist/track ID for recommendations
+
+2. Get Recommendations:
+   - Use AdvancedSearch with include_recommendations: true
+   - Base recommendations on the reference track/artist
+   - Strategy: {discovery_settings.get(discovery_level, discovery_settings["balanced"])}
+
+3. Expand Discovery:
+   - Search for related artists and genres
+   - Use filters to find music from similar time periods
+   - Look for collaborations and remixes
+
+4. Create Discovery Collection:
+   - Organize findings into a "Similar to {reference}" playlist
+   - Include the original reference for context
+   - Add 15-25 discovery tracks
+
+This approach will help you explore music that shares DNA with "{reference}" while expanding your musical horizons."""
+
+            return types.GetPromptResult(
+                description=f"Music discovery workflow based on {reference}",
+                messages=[
+                    types.PromptMessage(
+                        role="user", 
+                        content=types.TextContent(type="text", text=prompt_content)
+                    )
+                ]
+            )
+            
+        elif name == "party_playlist_generator":
+            party_type = arguments.get("party_type", "house_party") if arguments else "house_party"
+            duration = arguments.get("duration_hours", "3") if arguments else "3"
+            
+            tracks_needed = int(float(duration) * 15)  # ~15 tracks per hour
+            
+            prompt_content = f"""Generate a {party_type} playlist for {duration} hours:
+
+1. Party Analysis:
+   - Party type: {party_type}
+   - Duration: {duration} hours (~{tracks_needed} tracks)
+   - Target audience: mixed crowd, wide appeal
+
+2. Music Selection Strategy:
+   - Start: Welcoming, moderate energy tracks
+   - Middle: Peak energy, crowd favorites, danceable hits
+   - End: Wind-down tracks, sing-alongs
+
+3. Search Approach:
+   - Use AdvancedSearch with query: "party dance hits"
+   - Include filters for different decades (80s, 90s, 2000s, 2010s, 2020s)
+   - Set include_recommendations: true for crowd-pleasers
+
+4. Playlist Construction:
+   - Name: "{party_type.replace('_', ' ').title()} Mix"
+   - Mix genres: pop, dance, hip-hop, rock classics
+   - Avoid explicit content for mixed crowds
+   - Test energy flow and transitions
+
+Goal: Create an irresistible {party_type} soundtrack that keeps everyone engaged."""
+
+            return types.GetPromptResult(
+                description=f"Party playlist generator for {party_type}",
+                messages=[
+                    types.PromptMessage(
+                        role="user",
+                        content=types.TextContent(type="text", text=prompt_content)
+                    )
+                ]
+            )
+            
+        elif name == "workout_playlist_builder":
+            workout_type = arguments.get("workout_type", "cardio") if arguments else "cardio"
+            intensity = arguments.get("intensity", "high") if arguments else "high"
+            
+            prompt_content = f"""Build an energizing {workout_type} playlist with {intensity} intensity:
+
+1. Workout Analysis:
+   - Type: {workout_type}
+   - Intensity: {intensity}
+   - BPM target: {"120-140" if workout_type == "cardio" else "100-130" if workout_type == "strength" else "80-100"}
+
+2. Music Strategy:
+   - Warm-up: Building energy (5 tracks)
+   - Main workout: Peak energy, driving beats (15-20 tracks)
+   - Cool-down: Recovery tempo (3-5 tracks)
+
+3. Search Queries:
+   - "workout motivation {intensity} energy"
+   - "pump up {workout_type} music"
+   - Use AdvancedSearch with genre filters: electronic, hip-hop, rock
+
+4. Playlist Features:
+   - Name: "{workout_type.title()} Power - {intensity.title()}"
+   - Seamless energy progression
+   - Motivational lyrics and driving beats
+   - 45-60 minute duration
+
+Transform your {workout_type} session with the perfect sonic fuel."""
+
+            return types.GetPromptResult(
+                description=f"Workout playlist builder for {workout_type}",
+                messages=[
+                    types.PromptMessage(
+                        role="user",
+                        content=types.TextContent(type="text", text=prompt_content)
+                    )
+                ]
+            )
+            
+        elif name == "focus_music_curator":
+            focus_type = arguments.get("focus_type", "coding") if arguments else "coding"
+            noise_level = arguments.get("noise_level", "ambient") if arguments else "ambient"
+            
+            prompt_content = f"""Curate focus music for {focus_type} with {noise_level} sound level:
+
+1. Focus Requirements:
+   - Activity: {focus_type}
+   - Sound level: {noise_level}
+   - Goal: Enhance concentration without distraction
+
+2. Music Characteristics:
+   - Minimal vocals or instrumental only
+   - Consistent tempo and mood
+   - Non-intrusive but engaging
+   - 1-3 hour duration for deep work
+
+3. Search Strategy:
+   - Query: "{focus_type} focus instrumental ambient"
+   - Genres: ambient, electronic, classical, lo-fi
+   - Use AdvancedSearch filters: instrumental preference
+   - Include nature sounds and white noise elements
+
+4. Curation Process:
+   - Test tracks for distraction level
+   - Organize by energy level (low to moderate)
+   - Create seamless transitions
+   - Name: "Deep Focus - {focus_type.title()}"
+
+Build the perfect sonic environment for productive {focus_type} sessions."""
+
+            return types.GetPromptResult(
+                description=f"Focus music curation for {focus_type}",
+                messages=[
+                    types.PromptMessage(
+                        role="user",
+                        content=types.TextContent(type="text", text=prompt_content)
+                    )
+                ]
+            )
+            
+        else:
+            error = SpotifyMCPError.validation_error("name", f"Unknown prompt: {name}")
+            raise error
+            
+    except Exception as e:
+        logger.error(f"Error generating prompt {name}: {e}")
+        raise SpotifyMCPError(
+            SpotifyMCPErrorCode.UNKNOWN_ERROR,
+            f"Failed to generate prompt: {str(e)}"
+        )
 
 
 @server.read_resource()
@@ -255,6 +640,13 @@ async def handle_list_tools() -> list[types.Tool]:
         PlaylistItems.as_tool(),
         UserPlaylists.as_tool(),
         PlaylistCover.as_tool(),
+        BatchTrackInfo.as_tool(),
+        BatchPlaylistOperations.as_tool(),
+        RecommendationEngine.as_tool(),
+        UserAnalytics.as_tool(),
+        PaginatedSearch.as_tool(),
+        PlaylistPagination.as_tool(),
+        LibraryOperations.as_tool(),
     ]
     logger.info(f"Available tools: {[tool.name for tool in tools]}")
     return tools
@@ -641,6 +1033,452 @@ async def handle_call_tool(
                         return [types.TextContent(
                             type="text",
                             text=f"Unknown playlist cover action: {action}. Supported actions are: get, upload"
+                        )]
+
+            case "BatchTrackInfo":
+                track_ids = arguments.get("track_ids", [])
+                if not track_ids or not isinstance(track_ids, list):
+                    error = SpotifyMCPError.validation_error("track_ids", "must be a non-empty list")
+                    return [error.to_mcp_error()]
+                
+                if len(track_ids) > 50:
+                    error = SpotifyMCPError.validation_error("track_ids", "cannot exceed 50 tracks per request")
+                    return [error.to_mcp_error()]
+                
+                include_audio_features = bool(arguments.get("include_audio_features", False))
+                market = arguments.get("market")
+                
+                # Get basic track info
+                tracks_info = spotify_client.sp.tracks(track_ids, market=market)
+                
+                result = {
+                    "tracks": tracks_info.get("tracks", []),
+                    "total_tracks": len(track_ids),
+                    "market": market
+                }
+                
+                # Add audio features if requested
+                if include_audio_features:
+                    audio_features = spotify_client.sp.audio_features(track_ids)
+                    result["audio_features"] = audio_features
+                
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(result, indent=2)
+                )]
+
+            case "BatchPlaylistOperations":
+                action = get_str_arg(arguments, "action")
+                playlist_id = get_str_arg(arguments, "playlist_id")
+                track_uris = arguments.get("track_uris", [])
+                
+                if not playlist_id:
+                    error = SpotifyMCPError.validation_error("playlist_id", "is required")
+                    return [error.to_mcp_error()]
+                
+                if not track_uris or not isinstance(track_uris, list):
+                    error = SpotifyMCPError.validation_error("track_uris", "must be a non-empty list")
+                    return [error.to_mcp_error()]
+                
+                if len(track_uris) > 100:
+                    error = SpotifyMCPError.validation_error("track_uris", "cannot exceed 100 tracks per request")
+                    return [error.to_mcp_error()]
+                
+                match action:
+                    case "add_tracks":
+                        position = arguments.get("position")
+                        result = spotify_client.sp.playlist_add_items(
+                            playlist_id, track_uris, position=position
+                        )
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Added {len(track_uris)} tracks to playlist. Snapshot ID: {result.get('snapshot_id')}"
+                        )]
+                    case "remove_tracks":
+                        snapshot_id = arguments.get("snapshot_id")
+                        result = spotify_client.sp.playlist_remove_all_occurrences_of_items(
+                            playlist_id, track_uris, snapshot_id=snapshot_id
+                        )
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Removed {len(track_uris)} tracks from playlist. Snapshot ID: {result.get('snapshot_id')}"
+                        )]
+                    case "replace_tracks":
+                        result = spotify_client.sp.playlist_replace_items(playlist_id, track_uris)
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Replaced playlist with {len(track_uris)} tracks. Snapshot ID: {result.get('snapshot_id')}"
+                        )]
+                    case _:
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Unknown batch operation: {action}. Supported actions are: add_tracks, remove_tracks, replace_tracks"
+                        )]
+
+            case "Recommendations":
+                seed_tracks = arguments.get("seed_tracks", [])
+                seed_artists = arguments.get("seed_artists", [])
+                seed_genres = arguments.get("seed_genres", [])
+                
+                # Validate seeds (must have at least one, max 5 total)
+                total_seeds = len(seed_tracks) + len(seed_artists) + len(seed_genres)
+                if total_seeds == 0:
+                    error = SpotifyMCPError.validation_error("seeds", "must provide at least one seed (track, artist, or genre)")
+                    return [error.to_mcp_error()]
+                
+                if total_seeds > 5:
+                    error = SpotifyMCPError.validation_error("seeds", "total seeds cannot exceed 5")
+                    return [error.to_mcp_error()]
+                
+                # Build recommendation parameters
+                rec_params = {
+                    "seed_tracks": seed_tracks[:5],
+                    "seed_artists": seed_artists[:5], 
+                    "seed_genres": seed_genres[:5],
+                    "limit": min(arguments.get("limit", 20), 100),
+                    "market": arguments.get("market")
+                }
+                
+                # Add audio feature targets
+                audio_targets = [
+                    "target_acousticness", "target_danceability", "target_energy",
+                    "target_valence", "target_tempo", "min_popularity", "max_popularity"
+                ]
+                for target in audio_targets:
+                    if target in arguments and arguments[target] is not None:
+                        rec_params[target] = arguments[target]
+                
+                recommendations = spotify_client.sp.recommendations(**rec_params)
+                
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(recommendations, indent=2)
+                )]
+
+            case "UserAnalytics":
+                analysis_type = get_str_arg(arguments, "analysis_type")
+                time_range = get_str_arg(arguments, "time_range", "medium_term")
+                limit = min(get_int_arg(arguments, "limit", 20), 50)
+                include_audio_features = bool(arguments.get("include_audio_features", False))
+                
+                match analysis_type:
+                    case "top_artists":
+                        top_artists = spotify_client.sp.current_user_top_artists(
+                            limit=limit, time_range=time_range
+                        )
+                        result = {"type": "top_artists", "time_range": time_range, "data": top_artists}
+                    case "top_tracks":
+                        top_tracks = spotify_client.sp.current_user_top_tracks(
+                            limit=limit, time_range=time_range
+                        )
+                        result = {"type": "top_tracks", "time_range": time_range, "data": top_tracks}
+                        
+                        if include_audio_features and top_tracks.get("items"):
+                            track_ids = [track["id"] for track in top_tracks["items"] if track.get("id")]
+                            if track_ids:
+                                audio_features = spotify_client.sp.audio_features(track_ids)
+                                result["audio_features"] = audio_features
+                    case "recently_played":
+                        recent = spotify_client.sp.current_user_recently_played(limit=limit)
+                        result = {"type": "recently_played", "data": recent}
+                        
+                        if include_audio_features and recent.get("items"):
+                            track_ids = [item["track"]["id"] for item in recent["items"] if item.get("track", {}).get("id")]
+                            if track_ids:
+                                audio_features = spotify_client.sp.audio_features(track_ids)
+                                result["audio_features"] = audio_features
+                    case "listening_stats":
+                        # Combine top artists and tracks for comprehensive stats
+                        top_artists = spotify_client.sp.current_user_top_artists(limit=10, time_range=time_range)
+                        top_tracks = spotify_client.sp.current_user_top_tracks(limit=20, time_range=time_range)
+                        recent = spotify_client.sp.current_user_recently_played(limit=50)
+                        
+                        result = {
+                            "type": "listening_stats",
+                            "time_range": time_range,
+                            "top_artists": top_artists,
+                            "top_tracks": top_tracks,
+                            "recent_listening": recent
+                        }
+                        
+                        if include_audio_features and top_tracks.get("items"):
+                            track_ids = [track["id"] for track in top_tracks["items"] if track.get("id")]
+                            if track_ids:
+                                audio_features = spotify_client.sp.audio_features(track_ids)
+                                result["audio_features"] = audio_features
+                    case _:
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Unknown analysis type: {analysis_type}. Supported types are: top_artists, top_tracks, recently_played, listening_stats"
+                        )]
+                
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(result, indent=2)
+                )]
+
+            case "PaginatedSearch":
+                query = get_str_arg(arguments, "query")
+                if not query:
+                    error = SpotifyMCPError.validation_error("query", "is required")
+                    return [error.to_mcp_error()]
+                
+                qtype = get_str_arg(arguments, "qtype", "track")
+                limit = min(get_int_arg(arguments, "limit", 20), 50)
+                offset = get_int_arg(arguments, "offset", 0)
+                market = arguments.get("market")
+                get_all_pages = bool(arguments.get("get_all_pages", False))
+                max_results = min(get_int_arg(arguments, "max_results", 1000), 10000)
+                
+                if get_all_pages:
+                    # Fetch all results with pagination
+                    all_results = {"items": [], "total": 0, "pages_fetched": 0}
+                    current_offset = offset
+                    
+                    while len(all_results["items"]) < max_results:
+                        search_results = spotify_client.sp.search(
+                            q=query, type=qtype, limit=limit, offset=current_offset, market=market
+                        )
+                        
+                        search_key = f"{qtype}s"
+                        if search_key not in search_results:
+                            break
+                            
+                        page_items = search_results[search_key]["items"]
+                        if not page_items:
+                            break
+                            
+                        all_results["items"].extend(page_items)
+                        all_results["total"] = search_results[search_key]["total"]
+                        all_results["pages_fetched"] += 1
+                        
+                        current_offset += limit
+                        
+                        # Stop if we've reached the end
+                        if len(page_items) < limit or current_offset >= search_results[search_key]["total"]:
+                            break
+                    
+                    # Trim to max_results
+                    all_results["items"] = all_results["items"][:max_results]
+                    all_results["returned_items"] = len(all_results["items"])
+                    
+                    return [types.TextContent(
+                        type="text",
+                        text=json.dumps(all_results, indent=2)
+                    )]
+                else:
+                    # Single page search
+                    search_results = spotify_client.sp.search(
+                        q=query, type=qtype, limit=limit, offset=offset, market=market
+                    )
+                    return [types.TextContent(
+                        type="text",
+                        text=json.dumps(search_results, indent=2)
+                    )]
+
+            case "PlaylistPagination":
+                playlist_id = get_str_arg(arguments, "playlist_id")
+                if not playlist_id:
+                    error = SpotifyMCPError.validation_error("playlist_id", "is required")
+                    return [error.to_mcp_error()]
+                
+                limit = min(get_int_arg(arguments, "limit", 50), 100)
+                offset = get_int_arg(arguments, "offset", 0)
+                get_all_tracks = bool(arguments.get("get_all_tracks", False))
+                include_audio_features = bool(arguments.get("include_audio_features", False))
+                fields = arguments.get("fields")
+                
+                if get_all_tracks:
+                    # Fetch all tracks from playlist
+                    all_tracks = {"items": [], "total": 0, "pages_fetched": 0}
+                    current_offset = offset
+                    
+                    while True:
+                        playlist_tracks = spotify_client.sp.playlist_items(
+                            playlist_id, limit=limit, offset=current_offset, fields=fields
+                        )
+                        
+                        if not playlist_tracks["items"]:
+                            break
+                            
+                        all_tracks["items"].extend(playlist_tracks["items"])
+                        all_tracks["total"] = playlist_tracks["total"]
+                        all_tracks["pages_fetched"] += 1
+                        
+                        current_offset += limit
+                        
+                        if len(playlist_tracks["items"]) < limit or current_offset >= playlist_tracks["total"]:
+                            break
+                    
+                    result = all_tracks
+                    
+                    # Add audio features if requested
+                    if include_audio_features and result["items"]:
+                        track_ids = []
+                        for item in result["items"]:
+                            if item.get("track", {}).get("id"):
+                                track_ids.append(item["track"]["id"])
+                        
+                        if track_ids:
+                            # Process in batches of 100
+                            audio_features = []
+                            for i in range(0, len(track_ids), 100):
+                                batch = track_ids[i:i+100]
+                                batch_features = spotify_client.sp.audio_features(batch)
+                                audio_features.extend(batch_features)
+                            result["audio_features"] = audio_features
+                    
+                    return [types.TextContent(
+                        type="text",
+                        text=json.dumps(result, indent=2)
+                    )]
+                else:
+                    # Single page
+                    playlist_tracks = spotify_client.sp.playlist_items(
+                        playlist_id, limit=limit, offset=offset, fields=fields
+                    )
+                    
+                    if include_audio_features and playlist_tracks["items"]:
+                        track_ids = [item["track"]["id"] for item in playlist_tracks["items"] 
+                                   if item.get("track", {}).get("id")]
+                        if track_ids:
+                            audio_features = spotify_client.sp.audio_features(track_ids)
+                            playlist_tracks["audio_features"] = audio_features
+                    
+                    return [types.TextContent(
+                        type="text",
+                        text=json.dumps(playlist_tracks, indent=2)
+                    )]
+
+            case "LibraryOperations":
+                operation = get_str_arg(arguments, "operation")
+                if not operation:
+                    error = SpotifyMCPError.validation_error("operation", "is required")
+                    return [error.to_mcp_error()]
+                
+                limit = min(get_int_arg(arguments, "limit", 20), 50)
+                offset = get_int_arg(arguments, "offset", 0)
+                track_ids = arguments.get("track_ids", [])
+                get_all_items = bool(arguments.get("get_all_items", False))
+                include_audio_features = bool(arguments.get("include_audio_features", False))
+                
+                match operation:
+                    case "get_saved_tracks":
+                        if get_all_items:
+                            all_tracks = {"items": [], "total": 0, "pages_fetched": 0}
+                            current_offset = offset
+                            
+                            while True:
+                                saved_tracks = spotify_client.sp.current_user_saved_tracks(
+                                    limit=limit, offset=current_offset
+                                )
+                                
+                                if not saved_tracks["items"]:
+                                    break
+                                    
+                                all_tracks["items"].extend(saved_tracks["items"])
+                                all_tracks["total"] = saved_tracks["total"]
+                                all_tracks["pages_fetched"] += 1
+                                
+                                current_offset += limit
+                                
+                                if len(saved_tracks["items"]) < limit or current_offset >= saved_tracks["total"]:
+                                    break
+                            
+                            result = all_tracks
+                        else:
+                            result = spotify_client.sp.current_user_saved_tracks(limit=limit, offset=offset)
+                        
+                        if include_audio_features and result["items"]:
+                            track_ids_for_features = [item["track"]["id"] for item in result["items"] 
+                                                    if item.get("track", {}).get("id")]
+                            if track_ids_for_features:
+                                # Process in batches for large collections
+                                audio_features = []
+                                for i in range(0, len(track_ids_for_features), 100):
+                                    batch = track_ids_for_features[i:i+100]
+                                    batch_features = spotify_client.sp.audio_features(batch)
+                                    audio_features.extend(batch_features)
+                                result["audio_features"] = audio_features
+                        
+                        return [types.TextContent(
+                            type="text",
+                            text=json.dumps(result, indent=2)
+                        )]
+                    
+                    case "get_saved_albums":
+                        if get_all_items:
+                            all_albums = {"items": [], "total": 0, "pages_fetched": 0}
+                            current_offset = offset
+                            
+                            while True:
+                                saved_albums = spotify_client.sp.current_user_saved_albums(
+                                    limit=limit, offset=current_offset
+                                )
+                                
+                                if not saved_albums["items"]:
+                                    break
+                                    
+                                all_albums["items"].extend(saved_albums["items"])
+                                all_albums["total"] = saved_albums["total"]
+                                all_albums["pages_fetched"] += 1
+                                
+                                current_offset += limit
+                                
+                                if len(saved_albums["items"]) < limit or current_offset >= saved_albums["total"]:
+                                    break
+                            
+                            result = all_albums
+                        else:
+                            result = spotify_client.sp.current_user_saved_albums(limit=limit, offset=offset)
+                        
+                        return [types.TextContent(
+                            type="text",
+                            text=json.dumps(result, indent=2)
+                        )]
+                    
+                    case "get_followed_artists":
+                        # Note: Spotify's followed artists endpoint doesn't support offset pagination
+                        followed = spotify_client.sp.current_user_followed_artists(limit=limit)
+                        return [types.TextContent(
+                            type="text",
+                            text=json.dumps(followed, indent=2)
+                        )]
+                    
+                    case "save_tracks":
+                        if not track_ids or not isinstance(track_ids, list):
+                            error = SpotifyMCPError.validation_error("track_ids", "required for save_tracks operation")
+                            return [error.to_mcp_error()]
+                        
+                        if len(track_ids) > 50:
+                            error = SpotifyMCPError.validation_error("track_ids", "cannot exceed 50 tracks per request")
+                            return [error.to_mcp_error()]
+                        
+                        spotify_client.sp.current_user_saved_tracks_add(track_ids)
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Saved {len(track_ids)} tracks to library"
+                        )]
+                    
+                    case "remove_tracks":
+                        if not track_ids or not isinstance(track_ids, list):
+                            error = SpotifyMCPError.validation_error("track_ids", "required for remove_tracks operation")
+                            return [error.to_mcp_error()]
+                        
+                        if len(track_ids) > 50:
+                            error = SpotifyMCPError.validation_error("track_ids", "cannot exceed 50 tracks per request")
+                            return [error.to_mcp_error()]
+                        
+                        spotify_client.sp.current_user_saved_tracks_delete(track_ids)
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Removed {len(track_ids)} tracks from library"
+                        )]
+                    
+                    case _:
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Unknown library operation: {operation}. Supported operations are: get_saved_tracks, get_saved_albums, get_followed_artists, save_tracks, remove_tracks"
                         )]
 
             case _:
