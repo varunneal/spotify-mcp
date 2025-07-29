@@ -79,9 +79,9 @@ class Client:
     cache_handler: CacheFileHandler
     logger: logging.Logger
 
-    def __init__(self, logger: logging.Logger):
+    def __init__(self, logger: Optional[logging.Logger] = None):
         """Initialize Spotify client with necessary permissions"""
-        self.logger = logger
+        self.logger = logger or logging.getLogger(__name__)
 
         # Use all defined scopes
         scope = ",".join(SCOPES)
