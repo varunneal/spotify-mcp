@@ -102,31 +102,31 @@ def setup_logger() -> logging.Logger:
     # TODO: can use mcp.server.stdio
     logger = logging.getLogger("spotify_mcp")
 
-    # Check if LOGGING_PATH environment variable is set
+    # Check if LOGGING_PATH environment variable is set, with sensible default
     logging_path = os.getenv("LOGGING_PATH")
+    
+    # Enable logging by default to a local logs directory
+    if not logging_path:
+        logging_path = str(Path.cwd() / "logs")
 
-    if logging_path:
-        log_dir = Path(logging_path)
-        log_dir.mkdir(parents=True, exist_ok=True)
+    log_dir = Path(logging_path)
+    log_dir.mkdir(parents=True, exist_ok=True)
 
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-        log_file = log_dir / f"spotify_mcp_{datetime.now().strftime('%Y%m%d')}.log"
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(formatter)
+    log_file = log_dir / f"spotify_mcp_{datetime.now().strftime('%Y%m%d')}.log"
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(formatter)
 
-        error_log_file = log_dir / f"spotify_mcp_errors_{datetime.now().strftime('%Y%m%d')}.log"
-        error_file_handler = logging.FileHandler(error_log_file)
-        error_file_handler.setFormatter(formatter)
-        error_file_handler.setLevel(logging.ERROR)
+    error_log_file = log_dir / f"spotify_mcp_errors_{datetime.now().strftime('%Y%m%d')}.log"
+    error_file_handler = logging.FileHandler(error_log_file)
+    error_file_handler.setFormatter(formatter)
+    error_file_handler.setLevel(logging.ERROR)
 
-        # Configure logger with both handlers
-        logger.setLevel(logging.INFO)
-        logger.addHandler(file_handler)
-        logger.addHandler(error_file_handler)
-    else:
-        # Use default logging configuration
-        logger.setLevel(logging.INFO)
+    # Configure logger with both handlers
+    logger.setLevel(logging.INFO)
+    logger.addHandler(file_handler)
+    logger.addHandler(error_file_handler)
 
     return logger
 

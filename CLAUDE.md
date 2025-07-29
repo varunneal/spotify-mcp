@@ -26,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `SPOTIFY_CLIENT_ID` - Spotify API Client ID
 - `SPOTIFY_CLIENT_SECRET` - Spotify API Client Secret  
 - `SPOTIFY_REDIRECT_URI` - Default: http://localhost:8888
-- `LOGGING_PATH` - Optional: Path for log files
+- `LOGGING_PATH` - Optional: Path for log files (default: ./logs/)
 
 ### Environment Configuration Priority
 The application uses a sophisticated three-tier configuration system:
@@ -431,13 +431,33 @@ The server now includes intelligent composite tools that batch multiple API call
 
 ## Usage Analytics & Optimization
 
-The server now includes comprehensive usage logging to identify optimization opportunities:
+The server now includes comprehensive usage logging to identify optimization opportunities. **Logging is enabled by default** to the `./logs/` directory.
+
+### Default Logging Behavior
+- **Automatic Setup**: Creates `./logs/` directory and enables logging by default
+- **Daily Log Files**: 
+  - `spotify_mcp_YYYYMMDD.log` - General usage and analytics
+  - `spotify_mcp_errors_YYYYMMDD.log` - Error-specific logs
+- **Analytics Frequency**: Comprehensive reports logged every 10 tool calls
+- **Custom Path**: Override with `LOGGING_PATH` environment variable
 
 ### Analytics Tracked
 - **Tool Usage Patterns**: Most called tools, execution times, API efficiency ratios
 - **Batching Opportunities**: Multi-API-call tools that should be consolidated
 - **Performance Metrics**: Round-trip analysis, success rates, error patterns
 - **User Behavior**: Workflow sequences, preferred features, usage frequency
+
+### Viewing Analytics Logs
+```bash
+# View live analytics
+tail -f logs/spotify_mcp_$(date +%Y%m%d).log | grep "Usage Analytics"
+
+# Check batching opportunities  
+grep "Batch Opportunities" logs/spotify_mcp_*.log
+
+# Monitor API efficiency
+grep "api_efficiency_ratio" logs/spotify_mcp_*.log
+```
 
 ### Optimization Benefits
 - **Reduced Latency**: Composite tools eliminate multiple round-trips
