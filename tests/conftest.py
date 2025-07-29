@@ -1,102 +1,97 @@
-"""Pytest configuration and fixtures."""
-import asyncio
-import os
-from typing import Dict, Any, Generator
-from unittest.mock import Mock, MagicMock, patch
+"""
+FastMCP test configuration and fixtures.
+"""
 
 import pytest
-from mcp.server import Server
+from unittest.mock import MagicMock, patch
+from typing import Dict, Any
 
-# Test environment variables are now configured in pyproject.toml via pytest-env
+# Sample Spotify API response data for testing
+SAMPLE_TRACK = {
+    "id": "4iV5W9uYEdYUVa79Axb7Rh",
+    "name": "Never Gonna Give You Up",
+    "artists": [{"name": "Rick Astley", "id": "0gxyHStUsqpMadRV0Di1Qt"}],
+    "album": {
+        "name": "Whenever You Need Somebody",
+        "id": "6XzKGcM6laRkTrME3rQvJw"
+    },
+    "duration_ms": 213573,
+    "popularity": 85,
+    "external_urls": {"spotify": "https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh"}
+}
+
+SAMPLE_PLAYLIST = {
+    "id": "37i9dQZF1DX0XUsuxWHRQd",
+    "name": "RapCaviar",
+    "description": "New music from hip-hop's underground",
+    "owner": {"display_name": "Spotify", "id": "spotify"},
+    "tracks": {"total": 50},
+    "external_urls": {"spotify": "https://open.spotify.com/playlist/37i9dQZF1DX0XUsuxWHRQd"}
+}
+
+SAMPLE_PLAYBACK_STATE = {
+    "is_playing": True,
+    "item": SAMPLE_TRACK,
+    "device": {"name": "My iPhone", "volume_percent": 70},
+    "shuffle_state": False,
+    "repeat_state": "off",
+    "progress_ms": 60000
+}
+
+SAMPLE_SEARCH_RESULTS = {
+    "tracks": {
+        "items": [SAMPLE_TRACK],
+        "total": 1
+    },
+    "albums": {"items": [], "total": 0},
+    "artists": {"items": [], "total": 0},
+    "playlists": {"items": [], "total": 0}
+}
 
 
 @pytest.fixture
-def mock_env_vars() -> Generator[None, None, None]:
-    """Mock environment variables for testing."""
-    original_env = os.environ.copy()
+def mock_spotify_client():
+    """Create a mocked Spotify client for testing."""
+    mock_client = MagicMock()
     
-    test_env = {
-        "SPOTIFY_CLIENT_ID": "test_client_id",
-        "SPOTIFY_CLIENT_SECRET": "test_client_secret", 
-        "SPOTIFY_REDIRECT_URI": "http://localhost:8888",
-    }
+    # Mock common methods
+    mock_client.current_playback.return_value = SAMPLE_PLAYBACK_STATE
+    mock_client.search.return_value = SAMPLE_SEARCH_RESULTS
+    mock_client.user_playlists.return_value = {"items": [SAMPLE_PLAYLIST]}
+    mock_client.playlist.return_value = SAMPLE_PLAYLIST
+    mock_client.track.return_value = SAMPLE_TRACK
+    mock_client.playlist_add_items.return_value = {"snapshot_id": "test123"}
+    mock_client.user_playlist_create.return_value = SAMPLE_PLAYLIST
     
-    os.environ.update(test_env)
-    
-    try:
-        yield
-    finally:
-        os.environ.clear()
-        os.environ.update(original_env)
+    return mock_client
 
 
 @pytest.fixture
-def mock_logger() -> Mock:
-    """Mock logger for testing."""
-    return Mock()
+def mock_spotify_api(mock_spotify_client):
+    """Mock the spotify_api module."""
+    with patch('spotify_mcp.fastmcp_server.spotify_client', mock_spotify_client):
+        yield mock_spotify_client
 
 
 @pytest.fixture
-def mock_spotify_client(mock_logger: Mock) -> Mock:
-    """Mock Spotify client for testing."""
-    with patch('spotify_mcp.spotify_api.Client') as mock_client_class:
-        mock_client = Mock()
-        mock_client.logger = mock_logger
-        mock_client.sp = Mock()
-        mock_client.auth_manager = Mock()
-        mock_client.cache_handler = Mock()
-        mock_client_class.return_value = mock_client
-        return mock_client
+def sample_track_data():
+    """Provide sample track data for tests."""
+    return SAMPLE_TRACK
 
 
-@pytest.fixture(autouse=True)
-def mock_spotify_client_initialization(mock_env_vars):
-    """Auto-use fixture to mock spotify client initialization at module level."""
-    with patch('spotify_mcp.spotify_api.Client') as mock_client_class:
-        mock_client = Mock()
-        mock_client.logger = Mock()
-        mock_client.sp = Mock()
-        mock_client.auth_manager = Mock()
-        mock_client.cache_handler = Mock()
-        mock_client_class.return_value = mock_client
-        yield mock_client
+@pytest.fixture 
+def sample_playlist_data():
+    """Provide sample playlist data for tests."""
+    return SAMPLE_PLAYLIST
 
 
 @pytest.fixture
-def sample_track_data() -> Dict[str, Any]:
-    """Sample track data for testing."""
-    return {
-        "id": "4iV5W9uYEdYUVa79Axb7Rh",
-        "name": "Test Song",
-        "artists": [{"name": "Test Artist", "id": "test_artist_id"}],
-        "album": {
-            "name": "Test Album",
-            "id": "test_album_id",
-            "artists": [{"name": "Test Artist", "id": "test_artist_id"}]
-        },
-        "duration_ms": 240000,
-        "track_number": 1,
-        "is_playable": True
-    }
+def sample_playback_data():
+    """Provide sample playback state data for tests."""
+    return SAMPLE_PLAYBACK_STATE
 
 
 @pytest.fixture
-def sample_playlist_data() -> Dict[str, Any]:
-    """Sample playlist data for testing."""
-    return {
-        "id": "test_playlist_id",
-        "name": "Test Playlist",
-        "owner": {"display_name": "Test User"},
-        "description": "A test playlist",
-        "tracks": {
-            "items": [
-                {
-                    "track": {
-                        "id": "4iV5W9uYEdYUVa79Axb7Rh",
-                        "name": "Test Song",
-                        "artists": [{"name": "Test Artist", "id": "test_artist_id"}]
-                    }
-                }
-            ]
-        }
-    }
+def sample_search_results():
+    """Provide sample search results for tests."""
+    return SAMPLE_SEARCH_RESULTS

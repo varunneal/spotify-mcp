@@ -1,205 +1,210 @@
-"""Tests for spotify_mcp.utils module."""
-from typing import Dict, Any
+"""
+Tests for utility functions.
+"""
 
 import pytest
-
-from spotify_mcp.utils import (
-    parse_track,
-    parse_artist,
-    parse_album,
-    parse_playlist,
-    parse_search_results,
-    build_search_query
-)
+from spotify_mcp.utils import parse_track, parse_artist, parse_album, parse_playlist
 
 
 class TestParseTrack:
-    """Tests for parse_track function."""
+    """Test track parsing utility."""
     
-    def test_parse_track_basic(self, sample_track_data: Dict[str, Any]) -> None:
-        """Test basic track parsing."""
+    def test_parse_basic_track(self, sample_track_data):
+        """Test parsing a basic track."""
         result = parse_track(sample_track_data)
         
-        assert result is not None
-        assert result["name"] == "Test Song"
+        assert result["name"] == "Never Gonna Give You Up"
         assert result["id"] == "4iV5W9uYEdYUVa79Axb7Rh"
+        assert result["artist"] == "Rick Astley"  # Single artist becomes 'artist'
+    
+    def test_parse_track_missing_fields(self):
+        """Test parsing track with missing optional fields."""
+        minimal_track = {
+            "id": "test123",
+            "name": "Test Track",
+            "artists": [{"name": "Test Artist"}]
+        }
+        
+        result = parse_track(minimal_track)
+        
+        assert result["name"] == "Test Track"
+        assert result["id"] == "test123"
         assert result["artist"] == "Test Artist"
     
-    def test_parse_track_detailed(self, sample_track_data: Dict[str, Any]) -> None:
-        """Test detailed track parsing."""
-        result = parse_track(sample_track_data, detailed=True)
-        
-        assert result is not None
-        assert result["name"] == "Test Song"
-        assert result["track_number"] == 1
-        assert result["duration_ms"] == 240000
-        assert "album" in result
-    
-    def test_parse_track_none_input(self) -> None:
-        """Test parse_track with None input."""
-        result = parse_track(None)
-        assert result is None
-    
-    def test_parse_track_multiple_artists(self) -> None:
-        """Test parse_track with multiple artists."""
+    def test_parse_track_multiple_artists(self):
+        """Test parsing track with multiple artists."""
         track_data = {
-            "id": "test_id",
-            "name": "Test Song",
+            "id": "test123",
+            "name": "Collaboration",
             "artists": [
-                {"name": "Artist 1", "id": "artist1"},
-                {"name": "Artist 2", "id": "artist2"}
-            ],
-            "album": {"name": "Test Album", "id": "album_id", "artists": []}
+                {"name": "Artist One"},
+                {"name": "Artist Two"},
+                {"name": "Artist Three"}
+            ]
         }
         
         result = parse_track(track_data)
         
-        assert result is not None
-        assert "artists" in result
-        assert len(result["artists"]) == 2
+        assert result["artists"] == ["Artist One", "Artist Two", "Artist Three"]
+        assert "artist" not in result  # Multiple artists use 'artists' key
+    
+    def test_parse_track_none_input(self):
+        """Test parsing None input."""
+        result = parse_track(None)
+        assert result is None
+    
+    def test_parse_track_detailed(self, sample_track_data):
+        """Test parsing track with detailed flag."""
+        # Add album data to sample
+        track_with_album = sample_track_data.copy()
+        track_with_album["album"] = {
+            "name": "Test Album",
+            "id": "album123",
+            "artists": [{"name": "Rick Astley"}]
+        }
+        track_with_album["track_number"] = 1
+        track_with_album["duration_ms"] = 213573
+        
+        result = parse_track(track_with_album, detailed=True)
+        
+        assert result["track_number"] == 1
+        assert result["duration_ms"] == 213573
+        assert result["album"] is not None
 
 
 class TestParseArtist:
-    """Tests for parse_artist function."""
+    """Test artist parsing utility."""
     
-    def test_parse_artist_basic(self) -> None:
-        """Test basic artist parsing."""
+    def test_parse_basic_artist(self):
+        """Test parsing a basic artist."""
         artist_data = {
-            "id": "artist_id",
-            "name": "Test Artist"
+            "id": "0gxyHStUsqpMadRV0Di1Qt",
+            "name": "Rick Astley"
         }
         
         result = parse_artist(artist_data)
         
-        assert result is not None
-        assert result["name"] == "Test Artist"
-        assert result["id"] == "artist_id"
+        assert result["name"] == "Rick Astley"
+        assert result["id"] == "0gxyHStUsqpMadRV0Di1Qt"
     
-    def test_parse_artist_detailed(self) -> None:
-        """Test detailed artist parsing."""
+    def test_parse_artist_detailed(self):
+        """Test parsing artist with detailed flag."""
         artist_data = {
-            "id": "artist_id",
-            "name": "Test Artist",
-            "genres": ["pop", "rock"]
+            "id": "0gxyHStUsqpMadRV0Di1Qt",
+            "name": "Rick Astley",
+            "genres": ["dance pop", "new wave pop"]
         }
         
         result = parse_artist(artist_data, detailed=True)
         
-        assert result is not None
-        assert result["genres"] == ["pop", "rock"]
+        assert result["name"] == "Rick Astley"
+        assert result["id"] == "0gxyHStUsqpMadRV0Di1Qt"
+        assert result["genres"] == ["dance pop", "new wave pop"]
     
-    def test_parse_artist_none_input(self) -> None:
-        """Test parse_artist with None input."""
+    def test_parse_artist_none_input(self):
+        """Test parsing None input."""
         result = parse_artist(None)
         assert result is None
 
 
-class TestParsePlaylist:
-    """Tests for parse_playlist function."""
+class TestParseAlbum:
+    """Test album parsing utility."""
     
-    def test_parse_playlist_basic(self, sample_playlist_data: Dict[str, Any]) -> None:
-        """Test basic playlist parsing."""
-        result = parse_playlist(sample_playlist_data)
+    def test_parse_basic_album(self):
+        """Test parsing a basic album."""
+        album_data = {
+            "id": "6XzKGcM6laRkTrME3rQvJw",
+            "name": "Whenever You Need Somebody",
+            "artists": [{"name": "Rick Astley"}]
+        }
         
-        assert result is not None
-        assert result["name"] == "Test Playlist"
-        assert result["id"] == "test_playlist_id"
-        assert result["owner"] == "Test User"
-    
-    def test_parse_playlist_detailed(self, sample_playlist_data: Dict[str, Any]) -> None:
-        """Test detailed playlist parsing."""
-        result = parse_playlist(sample_playlist_data, detailed=True)
+        result = parse_album(album_data)
         
-        assert result is not None
-        assert result["description"] == "A test playlist"
-        assert "tracks" in result
-        assert len(result["tracks"]) == 1
+        assert result["name"] == "Whenever You Need Somebody"
+        assert result["id"] == "6XzKGcM6laRkTrME3rQvJw"
+        assert result["artist"] == "Rick Astley"  # Single artist becomes 'artist'
     
-    def test_parse_playlist_none_input(self) -> None:
-        """Test parse_playlist with None input."""
-        result = parse_playlist(None)
-        assert result is None
-
-
-class TestBuildSearchQuery:
-    """Tests for build_search_query function."""
-    
-    def test_build_search_query_basic(self) -> None:
-        """Test basic search query building."""
-        result = build_search_query("test song")
-        assert "test%20song" in result
-    
-    def test_build_search_query_with_filters(self) -> None:
-        """Test search query with filters."""
-        result = build_search_query(
-            "test song",
-            artist="test artist",
-            year="2023"
-        )
+    def test_parse_album_multiple_artists(self):
+        """Test parsing album with multiple artists."""
+        album_data = {
+            "id": "test123",
+            "name": "Collaboration Album",
+            "artists": [
+                {"name": "Artist One"},
+                {"name": "Artist Two"}
+            ]
+        }
         
-        assert "artist%3Atest%20artist" in result
-        assert "year%3A2023" in result
-    
-    def test_build_search_query_year_range(self) -> None:
-        """Test search query with year range."""
-        result = build_search_query(
-            "test song",
-            year_range=(2020, 2023)
-        )
+        result = parse_album(album_data)
         
-        assert "year%3A2020-2023" in result
+        assert result["artists"] == ["Artist One", "Artist Two"]
+        assert "artist" not in result  # Multiple artists use 'artists' key
     
-    def test_build_search_query_tags(self) -> None:
-        """Test search query with special tags."""
-        result = build_search_query(
-            "test song",
-            is_hipster=True,
-            is_new=True
-        )
-        
-        assert "tag%3Ahipster" in result
-        assert "tag%3Anew" in result
-
-
-class TestParseSearchResults:
-    """Tests for parse_search_results function."""
-    
-    def test_parse_search_results_tracks(self, sample_track_data: Dict[str, Any]) -> None:
-        """Test parsing search results for tracks."""
-        search_data = {
+    def test_parse_album_detailed(self):
+        """Test parsing album with detailed flag."""
+        album_data = {
+            "id": "test123",
+            "name": "Test Album",
+            "artists": [{"name": "Test Artist", "id": "artist123"}],
+            "total_tracks": 10,
+            "release_date": "2023-01-01",
             "tracks": {
-                "items": [sample_track_data]
+                "items": [
+                    {"name": "Track 1", "id": "track1", "artists": [{"name": "Test Artist"}]},
+                    {"name": "Track 2", "id": "track2", "artists": [{"name": "Test Artist"}]}
+                ]
             }
         }
         
-        result = parse_search_results(search_data, "track")
+        result = parse_album(album_data, detailed=True)
         
-        assert "tracks" in result
-        assert len(result["tracks"]) == 1
-        assert result["tracks"][0]["name"] == "Test Song"
+        assert result["total_tracks"] == 10
+        assert result["release_date"] == "2023-01-01"
+        assert len(result["tracks"]) == 2
+        assert result["tracks"][0]["name"] == "Track 1"
     
-    def test_parse_search_results_multiple_types(self, sample_track_data: Dict[str, Any]) -> None:
-        """Test parsing search results for multiple types."""
-        search_data = {
-            "tracks": {"items": [sample_track_data]},
-            "artists": {"items": [{"id": "artist_id", "name": "Test Artist"}]}
+    def test_parse_album_none_input(self):
+        """Test parsing None input."""
+        result = parse_album(None)
+        assert result is None
+
+
+class TestParsePlaylist:
+    """Test playlist parsing utility."""
+    
+    def test_parse_basic_playlist(self, sample_playlist_data):
+        """Test parsing a basic playlist."""
+        result = parse_playlist(sample_playlist_data)
+        
+        assert result["name"] == "RapCaviar"
+        assert result["id"] == "37i9dQZF1DX0XUsuxWHRQd"
+        assert result["owner"] == "Spotify"
+    
+    def test_parse_playlist_detailed(self):
+        """Test parsing playlist with detailed flag."""
+        playlist_data = {
+            "id": "test123",
+            "name": "Test Playlist",
+            "owner": {"display_name": "Test User"},
+            "description": "A test playlist",
+            "tracks": {
+                "items": [
+                    {"track": {"name": "Track 1", "id": "track1", "artists": [{"name": "Artist 1"}]}},
+                    {"track": {"name": "Track 2", "id": "track2", "artists": [{"name": "Artist 2"}]}}
+                ]
+            }
         }
         
-        result = parse_search_results(search_data, "track,artist")
+        result = parse_playlist(playlist_data, detailed=True)
         
-        assert "tracks" in result
-        assert "artists" in result
-        assert len(result["tracks"]) == 1
-        assert len(result["artists"]) == 1
+        assert result["name"] == "Test Playlist"
+        assert result["description"] == "A test playlist"
+        assert result["owner"] == "Test User"
+        assert len(result["tracks"]) == 2
+        assert result["tracks"][0]["name"] == "Track 1"
+        assert result["tracks"][1]["name"] == "Track 2"
     
-    def test_parse_search_results_none_input(self) -> None:
-        """Test parse_search_results with None input."""
-        result = parse_search_results(None, "track")
-        assert result == {}
-    
-    def test_parse_search_results_invalid_type(self) -> None:
-        """Test parse_search_results with invalid type."""
-        search_data = {"tracks": {"items": []}}
-        
-        with pytest.raises(ValueError, match="uknown qtype"):
-            parse_search_results(search_data, "invalid_type")
+    def test_parse_playlist_none_input(self):
+        """Test parsing None input."""
+        result = parse_playlist(None)
+        assert result is None

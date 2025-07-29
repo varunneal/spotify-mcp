@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from spotipy import SpotifyException
 
 import spotify_mcp.spotify_api as spotify_api
-from spotify_mcp.errors import handle_spotify_error
+from spotify_mcp.errors import convert_spotify_error
 
 
 # Create FastMCP app
@@ -126,7 +126,7 @@ def playback_control(action: str, track_id: Optional[str] = None, num_skips: int
         )
         
     except SpotifyException as e:
-        raise handle_spotify_error(e)
+        raise convert_spotify_error(e)
 
 
 @mcp.tool()
@@ -160,7 +160,7 @@ def search_tracks(query: str, qtype: str = "track", limit: int = 10) -> List[Tra
         return tracks
         
     except SpotifyException as e:
-        raise handle_spotify_error(e)
+        raise convert_spotify_error(e)
 
 
 @mcp.tool()
@@ -193,7 +193,7 @@ def manage_queue(action: str, track_id: Optional[str] = None) -> Dict[str, Any]:
             raise ValueError(f"Invalid action: {action}")
             
     except SpotifyException as e:
-        raise handle_spotify_error(e)
+        raise convert_spotify_error(e)
 
 
 @mcp.tool() 
@@ -253,7 +253,7 @@ def get_item_info(item_id: str, qtype: str = "track") -> Dict[str, Any]:
             raise ValueError(f"Unsupported item type: {qtype}")
             
     except SpotifyException as e:
-        raise handle_spotify_error(e)
+        raise convert_spotify_error(e)
 
 
 @mcp.tool()
@@ -282,7 +282,7 @@ def create_playlist(name: str, description: str = "", public: bool = True) -> Pl
         )
         
     except SpotifyException as e:
-        raise handle_spotify_error(e)
+        raise convert_spotify_error(e)
 
 
 @mcp.tool()
@@ -301,7 +301,7 @@ def add_tracks_to_playlist(playlist_id: str, track_uris: List[str]) -> Dict[str,
         return {"status": "success", "message": f"Added {len(uris)} tracks to playlist"}
         
     except SpotifyException as e:
-        raise handle_spotify_error(e)
+        raise convert_spotify_error(e)
 
 
 @mcp.tool()
@@ -329,7 +329,7 @@ def get_user_playlists(limit: int = 20) -> List[Playlist]:
         return playlists
         
     except SpotifyException as e:
-        raise handle_spotify_error(e)
+        raise convert_spotify_error(e)
 
 
 # === RESOURCES ===

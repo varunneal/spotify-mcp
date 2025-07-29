@@ -221,6 +221,18 @@ class SpotifyMCPError(Exception):
         )
 
 
+def convert_spotify_error(e: Exception) -> Exception:
+    """Convert Spotify exceptions to appropriate exception types for FastMCP."""
+    if isinstance(e, SpotifyException):
+        error = SpotifyMCPError.from_spotify_exception(e)
+        # For FastMCP, we'll raise a ValueError with the error message
+        return ValueError(error.message)
+    elif isinstance(e, SpotifyMCPError):
+        return ValueError(e.message)
+    else:
+        return ValueError(f"Unexpected error: {str(e)}")
+
+
 def handle_spotify_error(func):
     """Decorator to handle Spotify API errors and convert them to MCP-compliant responses."""
     def wrapper(*args, **kwargs):

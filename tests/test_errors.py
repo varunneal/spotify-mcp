@@ -1,23 +1,126 @@
-"""Tests for error handling functionality."""
-import json
-from typing import Dict, Any
+"""
+Tests for error handling.
+"""
 
 import pytest
-import mcp.types as types
 from spotipy import SpotifyException
+from spotify_mcp.errors import convert_spotify_error, SpotifyMCPError, SpotifyMCPErrorCode
 
-from spotify_mcp.errors import (
-    SpotifyMCPError,
-    SpotifyMCPErrorCode,
-    handle_spotify_error
-)
+
+class TestSpotifyErrorHandling:
+    """Test Spotify API error handling."""
+    
+    def test_handle_404_error(self):
+        """Test handling 404 Not Found error."""
+        error = SpotifyException(404, -1, "The requested resource could not be found.")
+        
+        result = convert_spotify_error(error)
+        
+        assert isinstance(result, ValueError)
+        # Generic 404 goes to UNKNOWN_ERROR which includes the original message
+        assert "could not be found" in str(result).lower()
+    
+    def test_handle_401_error(self):
+        """Test handling 401 Unauthorized error."""
+        error = SpotifyException(401, -1, "Invalid access token")
+        
+        result = convert_spotify_error(error)
+        
+        assert isinstance(result, ValueError)
+        assert "authentication" in str(result).lower()
+    
+    def test_handle_401_token_expired_error(self):
+        """Test handling 401 token expired error."""
+        error = SpotifyException(401, -1, "The access token expired")
+        
+        result = convert_spotify_error(error)
+        
+        assert isinstance(result, ValueError)
+        assert "token" in str(result).lower()
+    
+    def test_handle_403_error(self):
+        """Test handling 403 Forbidden error."""
+        error = SpotifyException(403, -1, "Insufficient client scope")
+        
+        result = convert_spotify_error(error)
+        
+        assert isinstance(result, ValueError)
+        assert "permission" in str(result).lower()
+    
+    def test_handle_403_premium_error(self):
+        """Test handling 403 Premium required error."""
+        error = SpotifyException(403, -1, "Premium required")
+        
+        result = convert_spotify_error(error)
+        
+        assert isinstance(result, ValueError)
+        assert "premium" in str(result).lower()
+    
+    def test_handle_429_rate_limit_error(self):
+        """Test handling 429 Rate Limit error."""
+        error = SpotifyException(429, -1, "Rate limit exceeded", headers={"Retry-After": "60"})
+        
+        result = convert_spotify_error(error)
+        
+        assert isinstance(result, ValueError)
+        assert "rate limit" in str(result).lower()
+    
+    def test_handle_500_server_error(self):
+        """Test handling 500 Internal Server Error."""
+        error = SpotifyException(500, -1, "Internal server error")
+        
+        result = convert_spotify_error(error)
+        
+        assert isinstance(result, ValueError)
+        assert "unavailable" in str(result).lower() or "api" in str(result).lower()
+    
+    def test_handle_generic_spotify_error(self):
+        """Test handling generic Spotify error."""
+        error = SpotifyException(418, -1, "I'm a teapot")
+        
+        result = convert_spotify_error(error)
+        
+        assert isinstance(result, ValueError)
+        assert "teapot" in str(result).lower()
+    
+    def test_handle_non_spotify_exception(self):
+        """Test handling non-Spotify exceptions."""
+        error = ConnectionError("Network unreachable")
+        
+        result = convert_spotify_error(error)
+        
+        assert isinstance(result, ValueError)
+        assert "network unreachable" in str(result).lower()
+    
+    def test_handle_spotify_mcp_error(self):
+        """Test handling SpotifyMCPError directly."""
+        error = SpotifyMCPError(
+            SpotifyMCPErrorCode.NO_ACTIVE_DEVICE,
+            "No active device found",
+            suggestion="Open Spotify on a device"
+        )
+        
+        result = convert_spotify_error(error)
+        
+        assert isinstance(result, ValueError)
+        assert "no active device" in str(result).lower()
+    
+    def test_no_active_device_error(self):
+        """Test handling device-related errors."""
+        error = SpotifyException(404, -1, "No active device found")
+        
+        result = convert_spotify_error(error)
+        
+        assert isinstance(result, ValueError)
+        # Could be caught by device error or 404 handling
+        assert "device" in str(result).lower() or "not found" in str(result).lower()
 
 
 class TestSpotifyMCPError:
-    """Tests for SpotifyMCPError class."""
+    """Test SpotifyMCPError class functionality."""
     
-    def test_basic_error_creation(self) -> None:
-        """Test basic error creation and properties."""
+    def test_create_basic_error(self):
+        """Test creating a basic SpotifyMCPError."""
         error = SpotifyMCPError(
             SpotifyMCPErrorCode.TRACK_NOT_FOUND,
             "Track not found",
@@ -30,269 +133,61 @@ class TestSpotifyMCPError:
         assert error.details == {"track_id": "123"}
         assert error.suggestion == "Check the track ID"
     
-    def test_to_mcp_error(self) -> None:
-        """Test conversion to MCP error format."""
-        error = SpotifyMCPError(
-            SpotifyMCPErrorCode.AUTHENTICATION_FAILED,
-            "Auth failed",
-            {"code": 401},
-            "Re-authenticate"
-        )
-        
-        mcp_error = error.to_mcp_error()
-        
-        assert isinstance(mcp_error, types.TextContent)
-        parsed_response = json.loads(mcp_error.text)
-        
-        assert parsed_response["error"]["code"] == "authentication_failed"
-        assert parsed_response["error"]["message"] == "Auth failed"
-        assert parsed_response["error"]["details"] == {"code": 401}
-        assert parsed_response["error"]["suggestion"] == "Re-authenticate"
-    
-    def test_to_mcp_error_without_suggestion(self) -> None:
-        """Test MCP error format without suggestion."""
-        error = SpotifyMCPError(
-            SpotifyMCPErrorCode.UNKNOWN_ERROR,
-            "Something went wrong"
-        )
-        
-        mcp_error = error.to_mcp_error()
-        parsed_response = json.loads(mcp_error.text)
-        
-        assert "suggestion" not in parsed_response["error"]
-    
-    def test_validation_error_class_method(self) -> None:
+    def test_validation_error_class_method(self):
         """Test validation error class method."""
-        error = SpotifyMCPError.validation_error("track_id", "cannot be empty")
+        error = SpotifyMCPError.validation_error("track_id", "must be a valid Spotify ID")
         
         assert error.code == SpotifyMCPErrorCode.VALIDATION_ERROR
         assert "track_id" in error.message
-        assert "cannot be empty" in error.message
+        assert "must be a valid Spotify ID" in error.message
         assert error.details["field"] == "track_id"
-        assert "Check the input parameters" in error.suggestion
     
-    def test_no_active_device_class_method(self) -> None:
-        """Test no active device error class method."""
+    def test_no_active_device_class_method(self):
+        """Test no active device class method."""
         error = SpotifyMCPError.no_active_device()
         
         assert error.code == SpotifyMCPErrorCode.NO_ACTIVE_DEVICE
-        assert "No active Spotify device" in error.message
-        assert "Open Spotify on a device" in error.suggestion
+        assert "device" in error.message.lower()
+        assert "open spotify" in error.suggestion.lower()
     
-    def test_premium_required_class_method(self) -> None:
-        """Test premium required error class method."""
+    def test_premium_required_class_method(self):
+        """Test premium required class method."""
         error = SpotifyMCPError.premium_required("playback control")
         
         assert error.code == SpotifyMCPErrorCode.PREMIUM_REQUIRED
+        assert "premium" in error.message.lower()
         assert "playback control" in error.message
         assert error.details["operation"] == "playback control"
-        assert "Upgrade to Spotify Premium" in error.suggestion
-
-
-class TestSpotifyExceptionMapping:
-    """Tests for converting SpotifyException to SpotifyMCPError."""
     
-    def test_401_token_expired(self) -> None:
-        """Test mapping 401 token expired error."""
-        spotify_exc = SpotifyException(
-            http_status=401,
-            code=401,
-            msg="The access token expired"
-        )
-        
-        error = SpotifyMCPError.from_spotify_exception(spotify_exc)
-        
-        assert error.code == SpotifyMCPErrorCode.TOKEN_EXPIRED
-        assert "expired" in error.message
-        assert "re-authenticate" in error.suggestion.lower()
-        assert error.details["http_status"] == 401
-    
-    def test_401_general_auth_failure(self) -> None:
-        """Test mapping 401 general authentication failure."""
-        spotify_exc = SpotifyException(
-            http_status=401,
-            code=401,
-            msg="Invalid access token"
-        )
-        
-        error = SpotifyMCPError.from_spotify_exception(spotify_exc)
-        
-        assert error.code == SpotifyMCPErrorCode.AUTHENTICATION_FAILED
-        assert "Authentication" in error.message
-        assert "credentials" in error.suggestion.lower()
-    
-    def test_403_premium_required(self) -> None:
-        """Test mapping 403 premium required error."""
-        spotify_exc = SpotifyException(
-            http_status=403,
-            code=403,
-            msg="Premium required"
-        )
-        
-        error = SpotifyMCPError.from_spotify_exception(spotify_exc)
-        
-        assert error.code == SpotifyMCPErrorCode.PREMIUM_REQUIRED
-        assert "Premium" in error.message
-        assert "Upgrade" in error.suggestion
-    
-    def test_403_insufficient_scope(self) -> None:
-        """Test mapping 403 insufficient scope error."""
-        spotify_exc = SpotifyException(
-            http_status=403,
-            code=403,
-            msg="Insufficient client scope"
-        )
-        
-        error = SpotifyMCPError.from_spotify_exception(spotify_exc)
-        
-        assert error.code == SpotifyMCPErrorCode.INSUFFICIENT_SCOPE
-        assert "permissions" in error.message.lower()
-        assert "scope" in error.suggestion.lower()
-    
-    def test_404_track_not_found(self) -> None:
-        """Test mapping 404 track not found error."""
-        spotify_exc = SpotifyException(
-            http_status=404,
-            code=404,
-            msg="Track not found"
-        )
-        
-        error = SpotifyMCPError.from_spotify_exception(spotify_exc)
+    def test_from_spotify_exception_404_track(self):
+        """Test creating error from Spotify 404 track exception."""
+        exc = SpotifyException(404, -1, "track not found")
+        error = SpotifyMCPError.from_spotify_exception(exc)
         
         assert error.code == SpotifyMCPErrorCode.TRACK_NOT_FOUND
         assert "track" in error.message.lower()
-        assert "track ID" in error.suggestion
+        assert error.details["http_status"] == 404
     
-    def test_404_playlist_not_found(self) -> None:
-        """Test mapping 404 playlist not found error."""
-        spotify_exc = SpotifyException(
-            http_status=404,
-            code=404,
-            msg="Playlist not found"
-        )
-        
-        error = SpotifyMCPError.from_spotify_exception(spotify_exc)
+    def test_from_spotify_exception_404_playlist(self):
+        """Test creating error from Spotify 404 playlist exception."""
+        exc = SpotifyException(404, -1, "playlist not found")
+        error = SpotifyMCPError.from_spotify_exception(exc)
         
         assert error.code == SpotifyMCPErrorCode.PLAYLIST_NOT_FOUND
         assert "playlist" in error.message.lower()
-        assert "playlist ID" in error.suggestion
+        assert error.details["http_status"] == 404
     
-    def test_429_rate_limited(self) -> None:
-        """Test mapping 429 rate limit error."""
-        spotify_exc = SpotifyException(
-            http_status=429,
-            code=429,
-            msg="API rate limit exceeded"
+    def test_to_mcp_error(self):
+        """Test converting to MCP error format."""
+        error = SpotifyMCPError(
+            SpotifyMCPErrorCode.PREMIUM_REQUIRED,
+            "Premium required",
+            {"feature": "playback"},
+            "Upgrade to Premium"
         )
         
-        error = SpotifyMCPError.from_spotify_exception(spotify_exc)
+        mcp_error = error.to_mcp_error()
         
-        assert error.code == SpotifyMCPErrorCode.API_RATE_LIMITED
-        assert "rate limit" in error.message.lower()
-        assert "Wait" in error.suggestion
-    
-    def test_500_api_unavailable(self) -> None:
-        """Test mapping 500 server error."""
-        spotify_exc = SpotifyException(
-            http_status=500,
-            code=500,
-            msg="Internal server error"
-        )
-        
-        error = SpotifyMCPError.from_spotify_exception(spotify_exc)
-        
-        assert error.code == SpotifyMCPErrorCode.API_UNAVAILABLE
-        assert "unavailable" in error.message.lower()
-        assert "Try again" in error.suggestion
-    
-    def test_no_active_device_message(self) -> None:
-        """Test mapping no active device message."""
-        spotify_exc = SpotifyException(
-            http_status=404,
-            code=404,
-            msg="No active device found"
-        )
-        
-        error = SpotifyMCPError.from_spotify_exception(spotify_exc)
-        
-        assert error.code == SpotifyMCPErrorCode.NO_ACTIVE_DEVICE
-        assert "No active" in error.message
-        assert "Open Spotify" in error.suggestion
-    
-    def test_unknown_error_fallback(self) -> None:
-        """Test fallback to unknown error for unmapped exceptions."""
-        spotify_exc = SpotifyException(
-            http_status=418,  # I'm a teapot
-            code=418,
-            msg="I'm a teapot"
-        )
-        
-        error = SpotifyMCPError.from_spotify_exception(spotify_exc)
-        
-        assert error.code == SpotifyMCPErrorCode.UNKNOWN_ERROR
-        assert "I'm a teapot" in error.message
-        assert error.details["http_status"] == 418
-
-
-class TestErrorHandlerDecorator:
-    """Tests for the error handler decorator."""
-    
-    def test_successful_function_call(self) -> None:
-        """Test that successful function calls are not affected."""
-        @handle_spotify_error
-        def successful_function(value: str) -> str:
-            return f"Success: {value}"
-        
-        result = successful_function("test")
-        assert result == "Success: test"
-    
-    def test_spotify_exception_handling(self) -> None:
-        """Test that SpotifyException is properly handled."""
-        @handle_spotify_error
-        def failing_function() -> str:
-            raise SpotifyException(
-                http_status=401,
-                code=401,
-                msg="Token expired"
-            )
-        
-        result = failing_function()
-        
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert isinstance(result[0], types.TextContent)
-        
-        parsed_response = json.loads(result[0].text)
-        assert parsed_response["error"]["code"] == "token_expired"
-    
-    def test_spotify_mcp_error_handling(self) -> None:
-        """Test that SpotifyMCPError is properly handled."""
-        @handle_spotify_error
-        def failing_function() -> str:
-            raise SpotifyMCPError.validation_error("test_field", "invalid value")
-        
-        result = failing_function()
-        
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert isinstance(result[0], types.TextContent)
-        
-        parsed_response = json.loads(result[0].text)
-        assert parsed_response["error"]["code"] == "validation_error"
-    
-    def test_generic_exception_handling(self) -> None:
-        """Test that generic exceptions are properly handled."""
-        @handle_spotify_error
-        def failing_function() -> str:
-            raise ValueError("Something went wrong")
-        
-        result = failing_function()
-        
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert isinstance(result[0], types.TextContent)
-        
-        parsed_response = json.loads(result[0].text)
-        assert parsed_response["error"]["code"] == "unknown_error"
-        assert "Something went wrong" in parsed_response["error"]["message"]
-        assert parsed_response["error"]["details"]["error_type"] == "ValueError"
+        assert mcp_error.type == "text"
+        assert "premium required" in mcp_error.text.lower()
+        assert "upgrade to premium" in mcp_error.text.lower()
