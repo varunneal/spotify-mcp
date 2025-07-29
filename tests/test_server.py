@@ -71,7 +71,7 @@ class TestListTools:
         """Test that handle_list_tools returns expected tools."""
         tools = await handle_list_tools()
         
-        assert len(tools) == 9  # Updated number of tools with AdvancedSearch
+        assert len(tools) == 20  # Current number of tools including composite tools
         tool_names = [tool.name for tool in tools]
         
         expected_tools = [
