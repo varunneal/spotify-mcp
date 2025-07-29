@@ -129,6 +129,102 @@ class PlaylistCover(ToolModel):
     image_data: Optional[str] = Field(default=None, description="Base64-encoded JPEG image data (required for upload action)")
 
 
+@server.list_resources()
+async def handle_list_resources() -> list[types.Resource]:
+    """List available MCP resources."""
+    logger.info("Listing available resources")
+    resources = [
+        types.Resource(
+            uri="spotify://user/current",
+            name="Current User Profile", 
+            description="Current Spotify user's profile information and preferences",
+            mimeType="application/json"
+        ),
+        types.Resource(
+            uri="spotify://playback/current",
+            name="Current Playback State",
+            description="Real-time information about current playback including track, device, and state",
+            mimeType="application/json"
+        ),
+        types.Resource(
+            uri="spotify://devices/available", 
+            name="Available Devices",
+            description="List of available Spotify devices for playback control",
+            mimeType="application/json"
+        ),
+        types.Resource(
+            uri="spotify://queue/current",
+            name="Current Queue",
+            description="Current playback queue with upcoming tracks",
+            mimeType="application/json"
+        )
+    ]
+    logger.info(f"Available resources: {[r.name for r in resources]}")
+    return resources
+
+
+@server.read_resource()
+async def handle_read_resource(uri: AnyUrl) -> str:
+    """Handle resource read requests."""
+    uri_str = str(uri)
+    logger.info(f"Reading resource: {uri_str}")
+    
+    try:
+        if uri_str == "spotify://user/current":
+            user_info = spotify_client.sp.current_user()
+            if user_info:
+                # Clean up the user info to include relevant details
+                cleaned_info = {
+                    "id": user_info.get("id"),
+                    "display_name": user_info.get("display_name"),
+                    "email": user_info.get("email"),
+                    "country": user_info.get("country"),
+                    "product": user_info.get("product"),
+                    "followers": user_info.get("followers", {}).get("total", 0),
+                    "images": user_info.get("images", [])
+                }
+                return json.dumps(cleaned_info, indent=2)
+            return json.dumps({"error": "Unable to fetch user information"})
+            
+        elif uri_str == "spotify://playback/current":
+            playback_info = spotify_client.sp.current_playback()
+            if playback_info:
+                # Parse and clean playback information
+                current_track = spotify_client.get_current_track()
+                cleaned_playback = {
+                    "is_playing": playback_info.get("is_playing", False),
+                    "progress_ms": playback_info.get("progress_ms", 0),
+                    "volume_percent": playback_info.get("device", {}).get("volume_percent"),
+                    "device": {
+                        "name": playback_info.get("device", {}).get("name"),
+                        "type": playback_info.get("device", {}).get("type"),
+                        "is_active": playback_info.get("device", {}).get("is_active")
+                    },
+                    "current_track": current_track,
+                    "shuffle_state": playback_info.get("shuffle_state"),
+                    "repeat_state": playback_info.get("repeat_state")
+                }
+                return json.dumps(cleaned_playback, indent=2)
+            return json.dumps({"is_playing": False, "current_track": None})
+            
+        elif uri_str == "spotify://devices/available":
+            devices = spotify_client.get_devices()
+            return json.dumps({"devices": devices}, indent=2)
+            
+        elif uri_str == "spotify://queue/current":
+            queue_info = spotify_client.get_queue()
+            return json.dumps(queue_info, indent=2)
+            
+        else:
+            logger.error(f"Unknown resource URI: {uri_str}")
+            return json.dumps({"error": f"Unknown resource: {uri_str}"})
+            
+    except Exception as e:
+        error_msg = f"Error reading resource {uri_str}: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return json.dumps({"error": error_msg})
+
+
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
     """List available tools."""
