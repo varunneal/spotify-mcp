@@ -54,7 +54,7 @@ spotify_client = spotify_api.Client(logger)
 
 class ToolModel(BaseModel):
     @classmethod
-    def as_tool(cls):
+    def as_tool(cls) -> types.Tool:
         return types.Tool(
             name="Spotify" + cls.__name__,
             description=cls.__doc__,
@@ -469,7 +469,7 @@ async def handle_call_tool(
         raise
 
 
-async def main():
+async def main() -> None:
     logger.info("Starting Spotify MCP server")
     try:
         options = server.create_initialization_options()

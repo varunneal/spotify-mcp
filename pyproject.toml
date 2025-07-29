@@ -20,6 +20,12 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "spotify-mcp",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.12.0",
+    "pytest-env>=1.1.0",
+    "mypy>=1.8.0",
+    "types-requests>=2.31.0",
 ]
 
 [tool.uv.sources]
@@ -27,3 +33,54 @@ spotify-mcp = { workspace = true }
 
 [project.scripts]
 spotify-mcp = "spotify_mcp:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+env = [
+    "SPOTIFY_CLIENT_ID=test_client_id",
+    "SPOTIFY_CLIENT_SECRET=test_client_secret", 
+    "SPOTIFY_REDIRECT_URI=http://localhost:8888",
+]
+
+# Default environment variables for development
+# These are used when no environment variables or .env file is present
+[tool.spotify-mcp.env]
+SPOTIFY_CLIENT_ID = "your_spotify_client_id_here"
+SPOTIFY_CLIENT_SECRET = "your_spotify_client_secret_here"
+SPOTIFY_REDIRECT_URI = "http://localhost:8888"
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "spotipy.*",
+    "dotenv.*",
+]
+ignore_missing_imports = true

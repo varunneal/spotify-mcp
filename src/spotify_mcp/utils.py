@@ -122,7 +122,12 @@ def parse_search_results(results: Optional[Dict[str, Any]], qtype: str) -> Dict[
             case _:
                 raise ValueError(f"uknown qtype {qtype}")
 
-    return dict(_results)
+    # Filter out None values and convert to regular dict
+    filtered_results = {
+        key: [item for item in items if item is not None] 
+        for key, items in _results.items()
+    }
+    return dict(filtered_results)
 
 
 def build_search_query(base_query: str,
@@ -185,7 +190,7 @@ def validate(func: Callable[..., T]) -> Callable[..., T]:
     """
 
     @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self, *args, **kwargs) -> T:
         # Handle authentication
         if not self.auth_ok():
             self.auth_refresh()

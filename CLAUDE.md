@@ -7,8 +7,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Running the Server
 - `uv run spotify-mcp` - Start the MCP server (requires Spotify API credentials in environment)
 - `uv sync` - Sync dependencies and update lockfile
+- `uv sync --dev` - Sync development dependencies (includes pytest, mypy)
 - `uv build` - Build package distributions for PyPI
 - `uv publish` - Publish to PyPI (requires credentials)
+
+### Testing & Type Checking
+- `uv run pytest` - Run all unit tests
+- `uv run pytest -v` - Run tests with verbose output
+- `uv run pytest tests/test_utils.py` - Run specific test file
+- `uv run pytest -k "test_parse_track"` - Run tests matching pattern
+- `uv run mypy src/` - Run type checking on source code
+- `uv run mypy src/ --show-error-codes` - Type checking with error codes
 
 ### Debugging
 - `npx @modelcontextprotocol/inspector uv --directory /path/to/spotify_mcp run spotify-mcp` - Launch MCP Inspector for debugging
@@ -18,6 +27,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `SPOTIFY_CLIENT_SECRET` - Spotify API Client Secret  
 - `SPOTIFY_REDIRECT_URI` - Default: http://localhost:8888
 - `LOGGING_PATH` - Optional: Path for log files
+
+### Environment Configuration Priority
+The application uses a sophisticated three-tier configuration system:
+1. **Environment variables** (highest priority) - for MCP/production usage
+2. **`.env` file** - for local development (optional, create in project root)
+3. **pyproject.toml defaults** - fallback values configured in `[tool.spotify-mcp.env]`
+
+This means you can:
+- **MCP usage**: External env vars take precedence (no setup needed)
+- **Local development**: Either set env vars, create a `.env` file, OR edit `pyproject.toml` defaults
+- **Testing**: Zero setup required (uses `pytest-env` configuration)
+- **New contributors**: Can get started immediately using `pyproject.toml` defaults
+
+### Setting Up Development Credentials
+Option 1 - Edit `pyproject.toml` (simplest):
+```toml
+[tool.spotify-mcp.env]
+SPOTIFY_CLIENT_ID = "your_actual_client_id"
+SPOTIFY_CLIENT_SECRET = "your_actual_client_secret"
+```
+
+Option 2 - Create `.env` file:
+```bash
+SPOTIFY_CLIENT_ID=your_actual_client_id
+SPOTIFY_CLIENT_SECRET=your_actual_client_secret
+```
+
+Option 3 - Environment variables:
+```bash
+export SPOTIFY_CLIENT_ID=your_actual_client_id
+export SPOTIFY_CLIENT_SECRET=your_actual_client_secret
+```
 
 ## Architecture
 
@@ -277,3 +318,40 @@ class SpotifyAnalytics(ToolModel):
 - [ ] Advanced AI features
 
 This plan transforms the current functional MCP server into a state-of-the-art implementation that fully leverages both MCP protocol capabilities and Spotify API features.
+
+## Testing Infrastructure
+
+The project now includes comprehensive testing and type checking:
+
+### Test Structure
+- `tests/` - All test files
+- `tests/conftest.py` - Pytest configuration and shared fixtures
+- `tests/test_utils.py` - Tests for utility functions (parsing, search query building)
+- `tests/test_server.py` - Tests for MCP server tools and handlers
+
+### Key Testing Features
+- **Async Support**: Configured for testing async functions with `pytest-asyncio`
+- **Mocking**: Uses `pytest-mock` for mocking Spotify API calls and authentication
+- **Fixtures**: Provides sample data fixtures for tracks, playlists, artists
+- **Environment Management**: Test env vars configured in `pyproject.toml` via `pytest-env`
+- **Zero Setup Testing**: No `.env` file or credentials needed for tests
+
+### Type Checking
+- **MyPy Configuration**: Strict type checking with comprehensive rules
+- **External Library Handling**: Ignores missing imports for `spotipy` and `dotenv`
+- **Return Type Annotations**: All functions have proper return type hints
+
+### Current Test Coverage
+- ✅ Utils module: All parsing functions, search query building
+- ✅ Server module: Tool schema generation, basic tool handlers
+- ✅ Error handling: Invalid inputs, missing parameters
+- ❌ Spotify API client: Needs integration tests
+- ❌ Authentication flows: Needs mocked OAuth tests
+
+### Running Tests Safely
+All tests use mocked Spotify clients and environment variables, so they can run without:
+- Real Spotify API credentials
+- Network connectivity
+- Spotify Premium account
+
+This ensures safe development and CI/CD integration.
