@@ -26,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `SPOTIFY_CLIENT_ID` - Spotify API Client ID
 - `SPOTIFY_CLIENT_SECRET` - Spotify API Client Secret  
 - `SPOTIFY_REDIRECT_URI` - Default: http://localhost:8888
-- `LOGGING_PATH` - Optional: Path for log files (default: ./logs/)
+- `LOGGING_PATH` - Optional: Path for additional file logs (analytics use console by default)
 
 ### Environment Configuration Priority
 The application uses a sophisticated three-tier configuration system:
@@ -431,33 +431,44 @@ The server now includes intelligent composite tools that batch multiple API call
 
 ## Usage Analytics & Optimization
 
-The server now includes comprehensive usage logging to identify optimization opportunities. **Logging is enabled by default** to the `./logs/` directory.
+The server includes comprehensive usage analytics that log to the standard MCP console output with special markers for easy filtering.
 
-### Default Logging Behavior
-- **Automatic Setup**: Creates `./logs/` directory and enables logging by default
-- **Daily Log Files**: 
-  - `spotify_mcp_YYYYMMDD.log` - General usage and analytics
-  - `spotify_mcp_errors_YYYYMMDD.log` - Error-specific logs
-- **Analytics Frequency**: Comprehensive reports logged every 10 tool calls
-- **Custom Path**: Override with `LOGGING_PATH` environment variable
+### Console-Based Analytics
+- **Location**: `/Users/jamie/Library/Logs/Claude/mcp-server-spotify-py.log`
+- **Automatic**: No setup required - analytics appear in Claude's MCP logs
+- **Special Markers**: Emoji prefixes for easy filtering and identification
+- **Frequency**: Comprehensive reports every 10 tool calls, individual batch opportunities immediately
 
 ### Analytics Tracked
 - **Tool Usage Patterns**: Most called tools, execution times, API efficiency ratios
-- **Batching Opportunities**: Multi-API-call tools that should be consolidated
+- **Batching Opportunities**: Multi-API-call tools that should be consolidated (logged immediately)  
 - **Performance Metrics**: Round-trip analysis, success rates, error patterns
 - **User Behavior**: Workflow sequences, preferred features, usage frequency
 
-### Viewing Analytics Logs
+### Viewing Analytics in MCP Logs
+
+**For Optimization Insights:**
 ```bash
-# View live analytics
-tail -f logs/spotify_mcp_$(date +%Y%m%d).log | grep "Usage Analytics"
+# View usage analytics summaries (every 10 calls)
+tail -f /Users/jamie/Library/Logs/Claude/mcp-server-spotify-py.log | grep "🔍 USAGE_ANALYTICS"
 
-# Check batching opportunities  
-grep "Batch Opportunities" logs/spotify_mcp_*.log
+# Monitor batching opportunities in real-time
+tail -f /Users/jamie/Library/Logs/Claude/mcp-server-spotify-py.log | grep "🔄 BATCH_OPPORTUNITY"
 
-# Monitor API efficiency
-grep "api_efficiency_ratio" logs/spotify_mcp_*.log
+# View historical batch opportunity summaries  
+tail -f /Users/jamie/Library/Logs/Claude/mcp-server-spotify-py.log | grep "⚡ BATCH_OPPORTUNITIES"
 ```
+
+**For Normal Usage:**
+```bash
+# Standard server activity
+tail -f /Users/jamie/Library/Logs/Claude/mcp-server-spotify-py.log | grep -v "🔍\|🔄\|⚡"
+```
+
+### Log Markers
+- `🔍 USAGE_ANALYTICS:` - Comprehensive analytics reports (every 10 tool calls)
+- `🔄 BATCH_OPPORTUNITY:` - Individual tools making multiple API calls (immediate)
+- `⚡ BATCH_OPPORTUNITIES:` - Recent batching opportunities summary
 
 ### Optimization Benefits
 - **Reduced Latency**: Composite tools eliminate multiple round-trips

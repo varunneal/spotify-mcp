@@ -57,6 +57,8 @@ def log_tool_usage(tool_name: str, arguments: Dict[str, Any], execution_time: fl
             "api_calls": api_calls_made,
             "timestamp": timestamp
         })
+        # Log individual batching opportunities immediately
+        print(f"🔄 BATCH_OPPORTUNITY: {tool_name} -> {api_calls_made} ({round(execution_time, 3)}s)")
     
     # Log usage analytics periodically
     if len(_usage_stats["tool_call_sequences"]) % 10 == 0:
@@ -65,8 +67,6 @@ def log_tool_usage(tool_name: str, arguments: Dict[str, Any], execution_time: fl
 
 def log_usage_analytics() -> None:
     """Log comprehensive usage analytics for optimization insights."""
-    analytics_logger = logging.getLogger("spotify_mcp.analytics")
-    
     session_duration = time.time() - _usage_stats["session_start"]
     total_calls = sum(_usage_stats["tool_calls"].values())
     
@@ -90,44 +90,33 @@ def log_usage_analytics() -> None:
         "most_called_apis": sorted(_usage_stats["api_call_counts"].items(), key=lambda x: x[1], reverse=True)[:5]
     }
     
-    analytics_logger.info(f"Usage Analytics: {json.dumps(analytics_report, indent=2)}")
+    # Log to console with special markers for easy filtering
+    print(f"🔍 USAGE_ANALYTICS: {json.dumps(analytics_report)}")
     
     # Log specific batching opportunities
     if _usage_stats["batch_opportunities"]:
         recent_batches = _usage_stats["batch_opportunities"][-5:]
-        analytics_logger.info(f"Recent Batch Opportunities: {json.dumps(recent_batches, indent=2)}")
+        print(f"⚡ BATCH_OPPORTUNITIES: {json.dumps(recent_batches)}")
 
 
 def setup_logger() -> logging.Logger:
-    # TODO: can use mcp.server.stdio
+    # Simple console-based logging - analytics go to Claude's MCP log via print()
     logger = logging.getLogger("spotify_mcp")
-
-    # Check if LOGGING_PATH environment variable is set, with sensible default
-    logging_path = os.getenv("LOGGING_PATH")
-    
-    # Enable logging by default to a local logs directory
-    if not logging_path:
-        logging_path = str(Path.cwd() / "logs")
-
-    log_dir = Path(logging_path)
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-
-    log_file = log_dir / f"spotify_mcp_{datetime.now().strftime('%Y%m%d')}.log"
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(formatter)
-
-    error_log_file = log_dir / f"spotify_mcp_errors_{datetime.now().strftime('%Y%m%d')}.log"
-    error_file_handler = logging.FileHandler(error_log_file)
-    error_file_handler.setFormatter(formatter)
-    error_file_handler.setLevel(logging.ERROR)
-
-    # Configure logger with both handlers
     logger.setLevel(logging.INFO)
-    logger.addHandler(file_handler)
-    logger.addHandler(error_file_handler)
-
+    
+    # Only create file handlers if LOGGING_PATH is explicitly set
+    logging_path = os.getenv("LOGGING_PATH")
+    if logging_path:
+        log_dir = Path(logging_path)
+        log_dir.mkdir(parents=True, exist_ok=True)
+        
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        
+        log_file = log_dir / f"spotify_mcp_{datetime.now().strftime('%Y%m%d')}.log"
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    
     return logger
 
 
