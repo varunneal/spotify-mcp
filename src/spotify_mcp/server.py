@@ -100,6 +100,16 @@ class Search(ToolModel):
     limit: Optional[int] = Field(default=10, description="Maximum number of items to return")
 
 
+class AdvancedSearch(ToolModel):
+    """Advanced search with filters, recommendations, and intelligent discovery."""
+    query: str = Field(description="Base search query")
+    filters: Optional[Dict[str, Any]] = Field(default=None, description="Search filters: artist, album, year, year_range, genre, etc.")
+    include_recommendations: bool = Field(default=False, description="Include AI-powered recommendations based on search results")
+    qtype: Optional[str] = Field(default="track", description="Type of items to search for")
+    limit: Optional[int] = Field(default=20, description="Maximum number of items to return")
+    market: Optional[str] = Field(default=None, description="Market/country code for localized results")
+
+
 class PlaylistManage(ToolModel):
     """Manage playlists - create, update details, or get details of playlists."""
     action: str = Field(description="Action to perform: 'create', 'update_details', 'get'")
@@ -238,6 +248,7 @@ async def handle_list_tools() -> list[types.Tool]:
     tools = [
         Playback.as_tool(),
         Search.as_tool(),
+        AdvancedSearch.as_tool(),
         Queue.as_tool(),
         GetInfo.as_tool(),
         PlaylistManage.as_tool(),
@@ -353,6 +364,71 @@ async def handle_call_tool(
                     error = SpotifyMCPError.from_spotify_exception(e)
                     return [error.to_mcp_error()]
 
+            case "AdvancedSearch":
+                logger.info(f"Performing advanced search with arguments: {arguments}")
+                query = get_str_arg(arguments, "query")
+                if not query:
+                    error = SpotifyMCPError.validation_error("query", "is required for search")
+                    return [error.to_mcp_error()]
+                
+                if len(query.strip()) < 2:
+                    error = SpotifyMCPError.validation_error("query", "must be at least 2 characters long")
+                    return [error.to_mcp_error()]
+                
+                try:
+                    # Build advanced search query with filters
+                    filters = arguments.get("filters", {}) or {}
+                    
+                    # Import utils.build_search_query here to avoid circular imports
+                    from .utils import build_search_query
+                    
+                    enhanced_query = build_search_query(
+                        query,
+                        artist=filters.get("artist"),
+                        track=filters.get("track"), 
+                        album=filters.get("album"),
+                        year=filters.get("year"),
+                        year_range=tuple(filters["year_range"]) if filters.get("year_range") and len(filters["year_range"]) == 2 else None,
+                        genre=filters.get("genre"),
+                        is_hipster=filters.get("is_hipster", False),
+                        is_new=filters.get("is_new", False)
+                    )
+                    
+                    # Perform the search
+                    search_results = spotify_client.search(
+                        query=enhanced_query,
+                        qtype=get_str_arg(arguments, "qtype", "track"),
+                        limit=get_int_arg(arguments, "limit", 20)
+                    )
+                    
+                    # Add recommendations if requested
+                    if arguments.get("include_recommendations", False):
+                        try:
+                            # Get track IDs from search results for recommendations
+                            track_ids = []
+                            if "tracks" in search_results:
+                                track_ids = [track.get("id") for track in search_results["tracks"][:5] if track.get("id")]
+                            
+                            if track_ids:
+                                recommendations = spotify_client.recommendations(tracks=track_ids[:5], limit=10)
+                                if recommendations and "tracks" in recommendations:
+                                    from .utils import parse_search_results
+                                    parsed_recs = parse_search_results({"tracks": {"items": recommendations["tracks"]}}, "track")
+                                    search_results["recommendations"] = parsed_recs.get("tracks", [])
+                        except Exception as e:
+                            logger.warning(f"Failed to get recommendations: {e}")
+                            # Don't fail the entire search if recommendations fail
+                    
+                    logger.info("Advanced search completed successfully")
+                    return [types.TextContent(
+                        type="text",
+                        text=json.dumps(search_results, indent=2)
+                    )]
+                    
+                except SpotifyException as e:
+                    error = SpotifyMCPError.from_spotify_exception(e)
+                    return [error.to_mcp_error()]
+
             case "Queue":
                 logger.info(f"Queue operation with arguments: {arguments}")
                 action = get_str_arg(arguments, "action")
@@ -389,18 +465,21 @@ async def handle_call_tool(
                 logger.info(f"Getting item info with arguments: {arguments}")
                 item_id = get_str_arg(arguments, "item_id")
                 if not item_id:
+                    error = SpotifyMCPError.validation_error("item_id", "is required")
+                    return [error.to_mcp_error()]
+                
+                try:
+                    item_info = spotify_client.get_info(
+                        item_id=item_id,
+                        qtype=get_str_arg(arguments, "qtype", "track")
+                    )
                     return [types.TextContent(
                         type="text",
-                        text="item_id is required"
+                        text=json.dumps(item_info, indent=2)
                     )]
-                item_info = spotify_client.get_info(
-                    item_id=item_id,
-                    qtype=get_str_arg(arguments, "qtype", "track")
-                )
-                return [types.TextContent(
-                    type="text",
-                    text=json.dumps(item_info, indent=2)
-                )]
+                except SpotifyException as e:
+                    error = SpotifyMCPError.from_spotify_exception(e)
+                    return [error.to_mcp_error()]
 
             case "PlaylistManage":
                 action = get_str_arg(arguments, "action")

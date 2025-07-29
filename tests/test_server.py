@@ -51,6 +51,16 @@ class TestToolModels:
         assert tool.name == "SpotifyGetInfo"
         assert "item_id" in tool.inputSchema["properties"]
         assert "qtype" in tool.inputSchema["properties"]
+    
+    def test_advanced_search_tool_schema(self) -> None:
+        """Test AdvancedSearch tool schema generation."""
+        from spotify_mcp.server import AdvancedSearch
+        tool = AdvancedSearch.as_tool()
+        
+        assert tool.name == "SpotifyAdvancedSearch"
+        assert "query" in tool.inputSchema["properties"]
+        assert "filters" in tool.inputSchema["properties"]
+        assert "include_recommendations" in tool.inputSchema["properties"]
 
 
 class TestListTools:
@@ -61,12 +71,13 @@ class TestListTools:
         """Test that handle_list_tools returns expected tools."""
         tools = await handle_list_tools()
         
-        assert len(tools) == 8  # Current number of tools
+        assert len(tools) == 9  # Updated number of tools with AdvancedSearch
         tool_names = [tool.name for tool in tools]
         
         expected_tools = [
             "SpotifyPlayback",
-            "SpotifySearch", 
+            "SpotifySearch",
+            "SpotifyAdvancedSearch",
             "SpotifyQueue",
             "SpotifyGetInfo",
             "SpotifyPlaylistManage",
@@ -197,4 +208,100 @@ class TestCallTool:
         
         assert len(result) == 1
         assert isinstance(result[0], types.TextContent)
-        assert "item_id is required" in result[0].text
+        
+        # Parse the JSON error response  
+        import json
+        parsed_response = json.loads(result[0].text)
+        assert parsed_response["error"]["code"] == "validation_error"
+        assert "item_id" in parsed_response["error"]["message"]
+    
+    @pytest.mark.asyncio
+    @patch('spotify_mcp.server.spotify_client')
+    async def test_handle_call_tool_advanced_search_basic(self, mock_client: Mock) -> None:
+        """Test handle_call_tool for advanced search with basic query."""
+        mock_client.search.return_value = {
+            "tracks": [{"name": "Test Song", "artist": "Test Artist"}]
+        }
+        
+        result = await handle_call_tool("SpotifyAdvancedSearch", {"query": "test song"})
+        
+        assert len(result) == 1
+        assert isinstance(result[0], types.TextContent)
+        mock_client.search.assert_called_once()
+    
+    @pytest.mark.asyncio
+    @patch('spotify_mcp.server.spotify_client')
+    async def test_handle_call_tool_advanced_search_with_filters(self, mock_client: Mock) -> None:
+        """Test handle_call_tool for advanced search with filters."""
+        mock_client.search.return_value = {
+            "tracks": [{"name": "Test Song", "artist": "Test Artist"}]
+        }
+        
+        filters = {
+            "artist": "Taylor Swift",
+            "year": "2023",
+            "genre": "pop"
+        }
+        
+        result = await handle_call_tool("SpotifyAdvancedSearch", {
+            "query": "love song",
+            "filters": filters,
+            "limit": 15
+        })
+        
+        assert len(result) == 1
+        assert isinstance(result[0], types.TextContent)
+        mock_client.search.assert_called_once()
+        
+        # Check that the search was called with enhanced query parameters
+        call_args = mock_client.search.call_args
+        assert call_args[1]["limit"] == 15
+    
+    @pytest.mark.asyncio
+    @patch('spotify_mcp.server.spotify_client')
+    async def test_handle_call_tool_advanced_search_with_recommendations(self, mock_client: Mock) -> None:
+        """Test handle_call_tool for advanced search with recommendations."""
+        mock_search_results = {
+            "tracks": [
+                {"name": "Test Song 1", "artists": [{"name": "Test Artist"}], "id": "track1"},
+                {"name": "Test Song 2", "artists": [{"name": "Test Artist"}], "id": "track2"}
+            ]
+        }
+        mock_recommendations = {
+            "tracks": [
+                {"name": "Recommended Song", "artists": [{"name": "Another Artist"}], "id": "track3"}
+            ]
+        }
+        
+        mock_client.search.return_value = mock_search_results
+        mock_client.recommendations.return_value = mock_recommendations
+        
+        result = await handle_call_tool("SpotifyAdvancedSearch", {
+            "query": "test song",
+            "include_recommendations": True
+        })
+        
+        assert len(result) == 1
+        assert isinstance(result[0], types.TextContent)
+        
+        # Parse result to check recommendations were included
+        import json
+        parsed_result = json.loads(result[0].text)
+        assert "recommendations" in parsed_result
+        
+        mock_client.search.assert_called_once()
+        mock_client.recommendations.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_handle_call_tool_advanced_search_no_query(self) -> None:
+        """Test handle_call_tool for advanced search without query."""
+        result = await handle_call_tool("SpotifyAdvancedSearch", {})
+        
+        assert len(result) == 1
+        assert isinstance(result[0], types.TextContent)
+        
+        # Parse the JSON error response
+        import json
+        parsed_response = json.loads(result[0].text)
+        assert parsed_response["error"]["code"] == "validation_error"
+        assert "query" in parsed_response["error"]["message"]
