@@ -15,6 +15,11 @@ from spotipy import SpotifyException
 from . import spotify_api
 
 
+# Global state for tracking playback changes
+_last_playback_state: Optional[Dict[str, Any]] = None
+_notification_task: Optional[asyncio.Task] = None
+
+
 def setup_logger() -> logging.Logger:
     # TODO: can use mcp.server.stdio
     logger = logging.getLogger("spotify_mcp")
@@ -565,17 +570,130 @@ async def handle_call_tool(
         raise
 
 
+async def monitor_playback_state() -> None:
+    """Monitor playback state and send notifications when it changes."""
+    global _last_playback_state
+    
+    logger.info("Starting playback state monitoring")
+    
+    while True:
+        try:
+            # Get current playback state
+            current_playback = spotify_client.sp.current_playback()
+            
+            # Create a comparable state representation
+            if current_playback:
+                current_state = {
+                    "is_playing": current_playback.get("is_playing", False),
+                    "track_id": current_playback.get("item", {}).get("id") if current_playback.get("item") else None,
+                    "progress_ms": current_playback.get("progress_ms", 0),
+                    "device_name": current_playback.get("device", {}).get("name"),
+                    "shuffle_state": current_playback.get("shuffle_state"),
+                    "repeat_state": current_playback.get("repeat_state"),
+                    "volume_percent": current_playback.get("device", {}).get("volume_percent")
+                }
+            else:
+                current_state = {"is_playing": False, "track_id": None}
+            
+            # Check if state has changed significantly
+            if _last_playback_state is None or _has_significant_change(_last_playback_state, current_state):
+                logger.info(f"Playback state changed: {current_state}")
+                
+                # Send notification about resource update
+                try:
+                    await server.send_resource_updated("spotify://playback/current")
+                    logger.info("Sent playback state change notification")
+                except Exception as e:
+                    logger.error(f"Failed to send notification: {e}")
+                
+                _last_playback_state = current_state
+            
+            # Wait before next poll (every 5 seconds)
+            await asyncio.sleep(5)
+            
+        except Exception as e:
+            logger.error(f"Error in playback monitoring: {e}", exc_info=True)
+            await asyncio.sleep(10)  # Wait longer if there's an error
+
+
+def _has_significant_change(old_state: Dict[str, Any], new_state: Dict[str, Any]) -> bool:
+    """Check if there's a significant change in playback state worth notifying about."""
+    # Always notify if play/pause state changes
+    if old_state.get("is_playing") != new_state.get("is_playing"):
+        return True
+    
+    # Always notify if track changes
+    if old_state.get("track_id") != new_state.get("track_id"):
+        return True
+    
+    # Always notify if device changes
+    if old_state.get("device_name") != new_state.get("device_name"):
+        return True
+    
+    # Notify if shuffle or repeat state changes
+    if old_state.get("shuffle_state") != new_state.get("shuffle_state"):
+        return True
+    
+    if old_state.get("repeat_state") != new_state.get("repeat_state"):
+        return True
+    
+    # Notify if volume changes significantly (more than 5%)
+    old_volume = old_state.get("volume_percent") or 0
+    new_volume = new_state.get("volume_percent") or 0
+    if abs(old_volume - new_volume) > 5:
+        return True
+    
+    # Don't notify for small progress changes (less than 10 seconds difference)
+    old_progress = old_state.get("progress_ms") or 0
+    new_progress = new_state.get("progress_ms") or 0
+    if abs(old_progress - new_progress) > 10000:  # 10 seconds
+        return True
+    
+    return False
+
+
+async def start_notifications() -> None:
+    """Start the notification monitoring task."""
+    global _notification_task
+    
+    if _notification_task is None or _notification_task.done():
+        _notification_task = asyncio.create_task(monitor_playback_state())
+        logger.info("Started notification monitoring task")
+
+
+async def stop_notifications() -> None:
+    """Stop the notification monitoring task."""
+    global _notification_task
+    
+    if _notification_task and not _notification_task.done():
+        _notification_task.cancel()
+        try:
+            await _notification_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Stopped notification monitoring task")
+
+
 async def main() -> None:
     logger.info("Starting Spotify MCP server")
     try:
         options = server.create_initialization_options()
         async with stdio_server() as (read_stream, write_stream):
             logger.info("Server initialized successfully")
-            await server.run(
-                read_stream,
-                write_stream,
-                options
-            )
+            
+            # Start notification monitoring
+            await start_notifications()
+            
+            try:
+                await server.run(
+                    read_stream,
+                    write_stream,
+                    options
+                )
+            finally:
+                # Clean up notification monitoring
+                await stop_notifications()
+                
     except Exception as e:
         logger.error(f"Server error occurred: {str(e)}", exc_info=True)
         raise
