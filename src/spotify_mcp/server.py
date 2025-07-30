@@ -99,6 +99,7 @@ class Playlist(ToolModel):
     track_ids: Optional[List[str]] = Field(default=None, description="List of track IDs to add/remove.")
     name: Optional[str] = Field(default=None, description="New name for the playlist.")
     description: Optional[str] = Field(default=None, description="New description for the playlist.")
+    limit: Optional[int] = Field(default=None, description="Maximum number of tracks to return for get_tracks action. If None, returns all tracks.")
 
 
 @server.list_prompts()
@@ -252,7 +253,10 @@ async def handle_call_tool(
                                 type="text",
                                 text="playlist_id is required for get_tracks action."
                             )]
-                        tracks = spotify_client.get_playlist_tracks(arguments.get("playlist_id"))
+                        tracks = spotify_client.get_playlist_tracks(
+                            arguments.get("playlist_id"),
+                            limit=arguments.get("limit")
+                        )
                         return [types.TextContent(
                             type="text",
                             text=json.dumps(tracks, indent=2)

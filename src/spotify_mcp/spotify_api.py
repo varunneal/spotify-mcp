@@ -226,12 +226,47 @@ class Client:
         """
         Get tracks from a playlist.
         - playlist_id: ID of the playlist to get tracks from.
-        - limit: Max number of tracks to return.
+        - limit: Max number of tracks to return. If None, returns all tracks.
         """
-        playlist = self.sp.playlist(playlist_id)
-        if not playlist:
-            raise ValueError("No playlist found.")
-        return utils.parse_tracks(playlist['tracks']['items'])
+        if not playlist_id:
+            raise ValueError("No playlist ID provided.")
+        
+        tracks = []
+        offset = 0
+        batch_size = min(limit, 100) if limit else 100  # Spotify API max is 100 per request
+        
+        while True:
+            # Get playlist tracks with pagination
+            playlist_tracks = self.sp.playlist_tracks(
+                playlist_id, 
+                limit=batch_size, 
+                offset=offset
+            )
+            
+            if not playlist_tracks or not playlist_tracks['items']:
+                break
+                
+            # Parse and add tracks
+            batch_tracks = utils.parse_tracks(playlist_tracks['items'])
+            tracks.extend(batch_tracks)
+            
+            # Check if we've reached the requested limit
+            if limit and len(tracks) >= limit:
+                tracks = tracks[:limit]  # Trim to exact limit
+                break
+                
+            # Check if we've reached the end
+            if len(playlist_tracks['items']) < batch_size:
+                break
+                
+            offset += batch_size
+            
+            # Safety check to prevent infinite loops
+            if offset > 10000:  # Arbitrary large number
+                self.logger.warning("Reached safety limit for playlist tracks pagination")
+                break
+        
+        return tracks
     
     @utils.ensure_username
     def add_tracks_to_playlist(self, playlist_id: str, track_ids: List[str], position: Optional[int] = None):
