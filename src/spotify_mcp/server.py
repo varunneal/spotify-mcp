@@ -92,13 +92,15 @@ class Playlist(ToolModel):
     - add_tracks: Add tracks to a specific playlist.
     - remove_tracks: Remove tracks from a specific playlist.
     - change_details: Change details of a specific playlist.
+    - create: Create a new playlist.
     """
     action: str = Field(
-        description="Action to perform: 'get', 'get_tracks', 'add_tracks', 'remove_tracks', 'change_details'.")
+        description="Action to perform: 'get', 'get_tracks', 'add_tracks', 'remove_tracks', 'change_details', 'create'.")
     playlist_id: Optional[str] = Field(default=None, description="ID of the playlist to manage.")
     track_ids: Optional[List[str]] = Field(default=None, description="List of track IDs to add/remove.")
-    name: Optional[str] = Field(default=None, description="New name for the playlist.")
-    description: Optional[str] = Field(default=None, description="New description for the playlist.")
+    name: Optional[str] = Field(default=None, description="Name for the playlist (required for create and change_details).")
+    description: Optional[str] = Field(default=None, description="Description for the playlist.")
+    public: Optional[bool] = Field(default=True, description="Whether the playlist should be public (for create action).")
 
 
 @server.list_prompts()
@@ -325,11 +327,30 @@ async def handle_call_tool(
                             text="Playlist details changed."
                         )]
 
+                    case "create":
+                        logger.info(f"Creating playlist with arguments: {arguments}")
+                        if not arguments.get("name"):
+                            logger.error("name is required for create action.")
+                            return [types.TextContent(
+                                type="text",
+                                text="name is required for create action."
+                            )]
+                        
+                        playlist = spotify_client.create_playlist(
+                            name=arguments.get("name"),
+                            description=arguments.get("description"),
+                            public=arguments.get("public", True)
+                        )
+                        return [types.TextContent(
+                            type="text",
+                            text=json.dumps(playlist, indent=2)
+                        )]
+
                     case _:
                         return [types.TextContent(
                             type="text",
                             text=f"Unknown playlist action: {action}."
-                                 "Supported actions are: get, get_tracks, add_tracks, remove_tracks, change_details."
+                                 "Supported actions are: get, get_tracks, add_tracks, remove_tracks, change_details, create."
                         )]
             case _:
                 error_msg = f"Unknown tool: {name}"
