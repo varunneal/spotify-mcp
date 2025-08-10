@@ -30,7 +30,7 @@ You can choose any port you want but you must use http and an explicit loopback 
 See [here](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri) for more info/troubleshooting. 
 You may have to restart your MCP environment (e.g. Claude Desktop) once or twice before it works.
 
-### Locating Claude Config
+### Locating MCP Config
 
 For Cursor, Claude Desktop, or any other MCP-enabled client you will have to locate your config.
 
@@ -44,24 +44,28 @@ For Cursor, Claude Desktop, or any other MCP-enabled client you will have to loc
 Add this snippet to your MCP Config.
 
 ```json
-"spotify": {
-  "command": "uvx",
-  "args": [
-    "--from",
-    "git+https://github.com/varunneal/spotify-mcp",
-    "spotify-mcp"
-  ],
-  "env": {
-    "SPOTIFY_CLIENT_ID": YOUR_CLIENT_ID,
-    "SPOTIFY_CLIENT_SECRET": YOUR_CLIENT_SECRET,
-    "SPOTIFY_REDIRECT_URI": "http://127.0.0.1:8080/callback"
+{
+  "mcpServers": {
+    "spotify": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--from", "git+https://github.com/varunneal/spotify-mcp",
+        "spotify-mcp"
+      ],
+      "env": {
+        "SPOTIFY_CLIENT_ID": YOUR_CLIENT_ID,
+        "SPOTIFY_CLIENT_SECRET": YOUR_CLIENT_SECRET,
+        "SPOTIFY_REDIRECT_URI": "http://127.0.0.1:8080/callback"
+      }
+    }
   }
 }
 ```
 
 ### Run this project locally
 
-Alternatively you can run this project locally by cloning this repo:
+Using UVX will open the spotify redirect URI for every tool call. To avoid this, you can run this project locally by cloning this repo:
 
 ```bash
 git clone https://github.com/varunneal/spotify-mcp.git
@@ -91,7 +95,7 @@ Add it to your MCP Config like this:
 Please open an issue if you can't get this MCP working. Here are some tips:
 
 1. Make sure `uv` is updated. I recommend version `>=0.54`.
-2. Make sure claude has execution permisisons for the project: `chmod -R 755`.
+2. If cloning locally, enable execution permisisons for the project: `chmod -R 755`.
 3. Ensure you have Spotify premium (needed for running developer API). 
 
 This MCP will emit logs to std err (as specified in the MCP) spec. On Mac the Claude Desktop app should emit these logs
@@ -116,7 +120,7 @@ from the Spotify API. Most new features will be relatively minor or for the heal
 - ~~adding API support for managing playlists.~~
 - adding API support for paginated search results/playlists/albums.
 
-PRs appreciated! Thanks to @jamiew, @davidpadbury, @manncodes, @hyuma7, @aanurraj, and others for contributions.  
+PRs appreciated! Thanks to @jamiew, @davidpadbury, @manncodes, @hyuma7, @aanurraj, @JJGO and others for contributions.  
 
 [//]: # (## Deployment)
 
