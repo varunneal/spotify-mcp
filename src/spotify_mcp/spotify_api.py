@@ -271,6 +271,33 @@ class Client:
             self.logger.error(f"Error removing tracks from playlist: {str(e)}")
 
     @utils.ensure_username
+    def create_playlist(self, name: str, description: Optional[str] = None, public: bool = True):
+        """
+        Create a new playlist.
+        - name: Name for the playlist.
+        - description: Description for the playlist.
+        - public: Whether the playlist should be public.
+        """
+        if not name:
+            raise ValueError("Playlist name is required.")
+        
+        try:
+            user = self.sp.current_user()
+            user_id = user['id']
+            
+            playlist = self.sp.user_playlist_create(
+                user=user_id,
+                name=name,
+                public=public,
+                description=description
+            )
+            self.logger.info(f"Created playlist: {name} (ID: {playlist['id']})")
+            return utils.parse_playlist(playlist, self.username, detailed=True)
+        except Exception as e:
+            self.logger.error(f"Error creating playlist: {str(e)}")
+            raise
+
+    @utils.ensure_username
     def change_playlist_details(self, playlist_id: str, name: Optional[str] = None, description: Optional[str] = None):
         """
         Change playlist details.
