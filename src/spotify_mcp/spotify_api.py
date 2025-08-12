@@ -79,14 +79,99 @@ class Client:
         """
         Returns more info about item.
         - item_uri: uri. Looks like 'spotify:track:xxxxxx', 'spotify:album:xxxxxx', etc.
+                    For users, can also be just 'me' or 'user' to get current user info.
         """
-        _, qtype, item_id = item_uri.split(":")
+        item_uri_str = str(item_uri) if item_uri is not None else ""
+        
+        # Handle empty/None cases or the literal string "user" - default to current user
+        if not item_uri_str or item_uri_str.strip() == '' or item_uri_str.lower() == 'user':
+            self.logger.info(f"Current user request detected: '{item_uri_str}', using /me endpoint")
+            # Directly get current user without going through user ID lookup
+            user_data = self.sp.current_user()
+            user_info = utils.parse_user(user_data, detailed=True)
+            user_id = user_data['id']
+            
+            # Fetch user's playlists
+            self.logger.info(f"Fetching playlists for current user (ID: {user_id})")
+            results = self.sp.user_playlists(user_id, limit=100)
+            
+            if results and results['items']:
+                playlists = []
+                for item in results['items']:
+                    playlists.append(utils.parse_playlist(item, self.username))
+                
+                self.logger.info(f"Found {len(playlists)} playlists")
+                user_info['playlists'] = playlists
+            else:
+                self.logger.info("No playlists found for this user")
+                user_info['playlists'] = []
+                
+            return user_info
+            
+        # Special case for current user 'me' reference
+        elif item_uri_str == 'me' or item_uri_str == 'spotify:user:me' or item_uri_str == 'user' or item_uri_str == 'spotify:user':
+            self.logger.info(f"Current user reference '{item_uri_str}' detected, fetching current user info")
+            qtype = 'user'
+            item_id = None  # Will trigger current user lookup
+            
+        # Handle other non-URI formats
+        elif ':' not in item_uri_str:
+            # If it's not a URI, assume it's a user ID
+            self.logger.info(f"Non-URI format '{item_uri_str}' detected, treating as user ID")
+            qtype = 'user'
+            item_id = item_uri_str
+            
+        else:
+            # Try to split the URI, handle potential format errors
+            parts = item_uri_str.split(":")
+            if len(parts) < 3:
+                raise ValueError(f"Invalid URI format: {item_uri_str}. Expected format: 'spotify:type:id'")
+            _, qtype, item_id = parts
+            self.logger.info(f"Parsed URI: type={qtype}, id={item_id}")
+            
         match qtype:
             case 'track':
                 return utils.parse_track(self.sp.track(item_id), detailed=True)
             case 'album':
                 album_info = utils.parse_album(self.sp.album(item_id), detailed=True)
                 return album_info
+            case 'user':
+                # Use the /me endpoint for current user
+                if item_id is None or item_id == 'me' or item_id == '':
+                    self.logger.info("Fetching current user info using /me endpoint")
+                    user_data = self.sp.current_user()
+                    user_info = utils.parse_user(user_data, detailed=True)
+                    user_id = user_data['id']  # Extract actual user ID for playlists
+                    self.logger.info(f"Current user ID: {user_id}")
+                else:
+                    self.logger.info(f"Fetching user info for specified ID: {item_id}")
+                    try:
+                        user_info = utils.parse_user(self.sp.user(item_id), detailed=True)
+                        user_id = item_id
+                    except Exception as e:
+                        self.logger.error(f"Error fetching user with ID '{item_id}': {str(e)}")
+                        # Fallback to current user if specified user ID fails
+                        self.logger.info("Falling back to current user")
+                        user_data = self.sp.current_user()
+                        user_info = utils.parse_user(user_data, detailed=True)
+                        user_id = user_data['id']
+                
+                # Fetch user's playlists
+                self.logger.info(f"Fetching playlists for user '{user_id}'")
+                results = self.sp.user_playlists(user_id, limit=100)
+                
+                if results and results['items']:
+                    playlists = []
+                    for item in results['items']:
+                        playlists.append(utils.parse_playlist(item, self.username))
+                    
+                    self.logger.info(f"Found {len(playlists)} playlists")
+                    user_info['playlists'] = playlists
+                else:
+                    self.logger.info("No playlists found for this user")
+                    user_info['playlists'] = []
+                    
+                return user_info
             case 'artist':
                 artist_info = utils.parse_artist(self.sp.artist(item_id), detailed=True)
                 albums = self.sp.artist_albums(item_id)
