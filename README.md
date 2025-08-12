@@ -78,7 +78,7 @@ Add it to your MCP Config like this:
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/spotify_mcp",
+        "/path/to/spotify-mcp",
         "run",
         "spotify-mcp"
       ],
@@ -106,7 +106,7 @@ On other platforms [you can find logs here](https://modelcontextprotocol.io/quic
 You can launch the MCP Inspector via [`npm`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) with this command:
 
 ```bash
-npx @modelcontextprotocol/inspector uv --directory /path/to/spotify_mcp run spotify-mcp
+npx @modelcontextprotocol/inspector uv --directory /path/to/spotify-mcp run spotify-mcp
 ```
 
 Upon launching, the Inspector will display a URL that you can access in your browser to begin debugging.
