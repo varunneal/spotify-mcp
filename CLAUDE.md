@@ -118,14 +118,20 @@ This is a Model Context Protocol (MCP) server that integrates Claude with Spotif
 
 #### `src/spotify_mcp/fastmcp_server.py` 
 - Main MCP server implementation using the modern **FastMCP framework**
-- Defines 7 MCP tools using `@mcp.tool()` decorators with Pydantic models:
+- Defines 13 focused MCP tools using `@mcp.tool()` decorators with Pydantic models:
   - `playback_control` - Control Spotify playback (get/start/pause/skip)
-  - `search_tracks` - Search for tracks, albums, artists, playlists
-  - `manage_queue` - Add tracks to queue or get current queue
-  - `get_item_info` - Get detailed info about tracks, artists, albums, playlists
+  - `search_tracks` - Search for tracks, albums, artists, playlists (with pagination)
+  - `add_to_queue` - Add track to playback queue
+  - `get_queue` - Get current playback queue
+  - `get_track_info` - Get detailed track information
+  - `get_artist_info` - Get artist information with top tracks
+  - `get_playlist_info` - Get playlist metadata (no tracks)
+  - `get_playlist_tracks` - Get playlist tracks with full pagination support
   - `create_playlist` - Create new Spotify playlists
-  - `add_tracks_to_playlist` - Batch add tracks to playlists
-  - `get_user_playlists` - Get user's playlists with metadata
+  - `add_tracks_to_playlist` - Batch add tracks to playlists (up to 100 per call)
+  - `get_user_playlists` - Get user's playlists with metadata (with pagination)
+  - `remove_tracks_from_playlist` - Remove tracks from playlists
+  - `modify_playlist_details` - Update playlist name, description, privacy
 
 #### `src/spotify_mcp/spotify_api.py`
 - Spotify API client wrapper using `spotipy` library
@@ -144,6 +150,53 @@ This is a Model Context Protocol (MCP) server that integrates Claude with Spotif
 - Token caching handled automatically by spotipy
 - Device validation ensures active Spotify device for playback operations
 
+### Pagination Support
+
+The server provides comprehensive pagination support for handling large datasets efficiently:
+
+#### Pagination-Enabled Tools
+
+**`search_tracks`** - Search with pagination
+- Parameters: `limit` (1-50, default 10), `offset` (default 0)
+- Returns: Dict with `items`, `total`, `limit`, `offset`, `next`, `previous`
+- Usage: `search_tracks("pop", limit=20, offset=40)` gets results 41-60
+
+**`get_user_playlists`** - User's playlists with pagination  
+- Parameters: `limit` (1-50, default 20), `offset` (default 0)
+- Returns: Dict with `items` (list of playlists) and pagination metadata
+- Usage: `get_user_playlists(limit=50, offset=100)` gets playlists 101-150
+
+**`get_playlist_tracks`** - Dedicated playlist tracks with full pagination
+- Parameters: `limit` (None for all, default), `offset` (default 0) 
+- Returns: Dict with `items` (tracks), `total`, `returned` count
+- Usage: `get_playlist_tracks(playlist_id, limit=100, offset=200)` gets tracks 201-300
+- Special: `limit=None` gets ALL tracks (up to 10,000 safety limit)
+
+#### Pagination Best Practices
+
+**For Large Playlists (>100 tracks):**
+1. Use `get_item_info()` first to check `total_tracks` 
+2. Use `get_playlist_tracks()` with batching: `limit=100, offset=0/100/200...`
+3. Consider sampling rather than processing all tracks for analysis
+
+**For Search Exploration:**
+1. Start with `limit=20` for quick overview
+2. Use `offset` to explore deeper: `offset=20, 40, 60...`
+3. Try different queries rather than just advancing offset
+4. Maximum useful offset is usually around 100-200
+
+**For User Playlists:**
+1. Check `total` in response to determine if more pages exist
+2. Use `offset` in multiples of your `limit` size
+3. Spotify enforces maximum of 50 playlists per request
+
+#### Memory and Performance
+
+- **Batch sizes**: Tools automatically use optimal Spotify API batch sizes (100 for playlists)
+- **Safety limits**: 10,000 track limit prevents infinite loops and excessive memory usage
+- **Progressive loading**: Get first page quickly, then paginate through remaining as needed
+- **Structured responses**: All paginated tools return consistent metadata for navigation
+
 ### Deployment Options
 1. **Local development**: Clone repo and run with `uv`
 2. **Claude Desktop**: Add to MCP configuration with environment variables
@@ -154,6 +207,301 @@ This is a Model Context Protocol (MCP) server that integrates Claude with Spotif
 - **spotipy**: Spotify Web API wrapper (>=2.25.0)
 - **python-dotenv**: Environment variable loading (>=1.1.0)
 - **pydantic**: Data validation built into FastMCP framework
+
+## Development Best Practices & Modernization Guide
+
+**⚠️ No Backwards Compatibility**: We always roll forward with modern patterns. Do not maintain legacy tool signatures or return formats.
+
+### 🎯 Core Design Philosophy
+
+**1. Single Responsibility Tools**
+- ❌ **Old**: `manage_queue(action="add|get")` - multi-purpose with string switches
+- ✅ **New**: `add_to_queue()` + `get_queue()` - focused, single-purpose tools
+- **Why**: Clearer tool discovery, better parameter validation, easier testing
+
+**2. Consistent Return Formats** 
+- ❌ **Old**: Mix of lists, raw models, `.model_dump()` calls
+- ✅ **New**: Always return structured `Dict[str, Any]` with consistent patterns
+- **Why**: Predictable API, better client integration, easier testing
+
+**3. Pagination-First Design**
+- ❌ **Old**: Hard-coded limits like `limit=50` in playlist tools  
+- ✅ **New**: Pagination parameters on all tools that can return large datasets
+- **Why**: Handles real-world usage, prevents truncation surprises
+
+### 🔧 Tool Design Patterns
+
+**Preferred Tool Signatures:**
+```python
+@mcp.tool()
+def specific_action(required_param: str, optional_param: int = default) -> Dict[str, Any]:
+    \"\"\"Single-purpose tool with clear intent.
+    
+    Args:
+        required_param: Clear description with type
+        optional_param: Default values for convenience
+        
+    Returns:
+        Dict with structured data and metadata
+        
+    Note: Include usage guidance for complex scenarios
+    \"\"\"
+```
+
+**Return Format Standards:**
+```python
+# For paginated results
+return {
+    "items": [...],           # Main data
+    "total": 1500,           # Total available  
+    "limit": 100,            # Page size used
+    "offset": 200,           # Starting position
+    "next": "...",           # Pagination URLs
+    "previous": "..."
+}
+
+# For single items/actions
+return {
+    "data": {...},           # Main result
+    "status": "success",     # Action status
+    "message": "...",        # Human-readable result
+    "metadata": {...}        # Additional context
+}
+```
+
+### 🚫 Anti-Patterns to Avoid
+
+**1. Multi-Purpose Tools with String Actions**
+```python
+# ❌ DON'T DO THIS
+def manage_thing(action: str, param: Optional[str] = None):
+    if action == "create":
+        # ...
+    elif action == "delete":
+        # ...
+```
+
+**2. Inconsistent Return Types**  
+```python
+# ❌ DON'T DO THIS
+def get_items(qtype: str):
+    if qtype == "tracks":
+        return list_of_tracks
+    elif qtype == "playlists": 
+        return {"playlists": data}
+```
+
+**3. Hard-Coded Limits**
+```python  
+# ❌ DON'T DO THIS
+def get_playlist_tracks(playlist_id):
+    return spotify.playlist_tracks(playlist_id, limit=50)  # Truncated!
+```
+
+**4. Generic Parameter Names**
+```python
+# ❌ DON'T DO THIS  
+def get_info(item_id: str, qtype: str):  # What types? What info?
+
+# ✅ DO THIS
+def get_track_info(track_id: str):       # Clear intent
+def get_artist_info(artist_id: str):     # Specific purpose
+```
+
+### 💡 Code Quality Standards
+
+**Type Safety:**
+- Use strict type hints on all functions
+- Leverage Pydantic models for structured data
+- Run `mypy` in CI/CD pipeline
+
+**Error Handling:**
+- Convert all Spotify exceptions to MCP-compliant errors
+- Provide helpful error messages with suggested actions
+- Include relevant context in error responses
+
+**Documentation:**
+- Tool docstrings must include Args, Returns, and usage notes
+- Complex tools need examples in docstring
+- Update CLAUDE.md when adding new patterns
+
+**Testing:**
+- All new tools require comprehensive tests
+- Test both success and failure scenarios  
+- Mock external API calls consistently
+- Verify pagination logic with large datasets
+
+### 🔄 Refactoring Guidelines
+
+**When Modernizing Legacy Code:**
+
+1. **Identify the pattern**: Multi-action tool? Mixed returns? Hard limits?
+2. **Split by responsibility**: Create focused, single-purpose tools
+3. **Standardize returns**: Use consistent `Dict[str, Any]` patterns
+4. **Add pagination**: If tool can return >20 items, add pagination
+5. **Update tests**: Match new signatures and return formats
+6. **No compatibility**: Don't keep old tools around
+
+**Tool Evolution Process:**
+```python
+# Step 1: Identify legacy pattern
+def get_item_info(item_id: str, qtype: str):  # Generic, multi-purpose
+
+# Step 2: Create focused replacements
+def get_track_info(track_id: str):           # Single purpose
+def get_artist_info(artist_id: str):         # Single purpose  
+def get_playlist_info(playlist_id: str):     # Single purpose
+
+# Step 3: Remove original (no backwards compatibility)
+# delete get_item_info entirely
+```
+
+### 📊 Current Architecture Strengths
+
+**Modern FastMCP Patterns:**
+- Automatic schema generation from type hints
+- Built-in input validation with Pydantic
+- Structured JSON + text responses
+- Development tooling (`uv run mcp dev`)
+
+**Comprehensive Pagination:**
+- Handles 10,000+ item datasets efficiently
+- Consistent limit/offset patterns across tools  
+- Safety limits prevent infinite loops
+- Clear documentation of pagination requirements
+
+**Production-Ready Features:**
+- OAuth token management and refresh
+- Comprehensive error handling and conversion
+- Structured logging for debugging
+- 3-tier configuration system
+- Complete test coverage (67 tests)
+
+### 🚀 Future Development Principles
+
+1. **API-First Design**: Design tool interfaces before implementation
+2. **User Experience Focus**: Clear intent over technical flexibility  
+3. **Performance by Design**: Pagination and batching built-in from start
+4. **Forward Compatibility**: Extensible patterns that grow with needs
+5. **Documentation as Code**: Keep CLAUDE.md and docstrings current
+
+**Remember**: We build for LLMs and human developers who value predictability, clarity, and performance over backwards compatibility.
+
+### 📝 Documentation Maintenance Protocol
+
+**When Making Significant Updates:**
+
+1. **Update README.md** - User-facing changes require README updates:
+   - New tools or capabilities
+   - Changed installation/setup procedures  
+   - Performance improvements or breaking changes
+   - New use cases or examples
+
+2. **Update CLAUDE.md** - Developer guidance changes require CLAUDE.md updates:
+   - New development patterns or best practices
+   - Architecture changes or design decisions
+   - Tool design guidelines or anti-patterns
+   - Testing strategies or quality standards
+
+**Documentation Standards:**
+- Keep examples current with actual tool signatures
+- Include performance characteristics (pagination limits, batch sizes)
+- Provide LLM-friendly usage tips in tool docstrings
+- Update version numbers and dependency requirements
+
+### 🎯 Future Enhancement Opportunities
+
+**High Priority - Immediate TODOs:**
+
+1. **Enhanced Tool Descriptions & LLM Guidance**
+   - Add more detailed usage examples in tool docstrings
+   - Include performance tips (when to paginate, batch sizes)
+   - Add common usage patterns and edge case handling
+   - Provide parameter validation guidance
+
+2. **Advanced Example Prompts**
+   - Create workflow prompts for complex scenarios
+   - Add prompts for playlist analysis and curation
+   - Include music discovery and recommendation patterns
+   - Demonstrate pagination strategies for large datasets
+
+3. **Additional MCP Resources** (Recommended)
+   - `spotify://user/library` - User's saved tracks and albums
+   - `spotify://playback/recently_played` - Recent listening history  
+   - `spotify://user/top_tracks` - User's most played tracks
+   - `spotify://user/top_artists` - User's favorite artists
+   - Dynamic resources that update with user activity
+
+**Medium Priority - Future Development:**
+
+4. **Smart Tool Parameter Completion**
+   - Context-aware parameter suggestions
+   - Integration with user's music library for autocomplete
+   - Intelligent defaults based on user behavior
+
+5. **Composite Operations**
+   - Tools that combine multiple API calls efficiently
+   - Bulk operations for playlist management
+   - Music analysis and recommendation pipelines
+
+6. **Real-time Features**
+   - WebSocket integration for live playback updates
+   - Collaborative playlist editing notifications
+   - Real-time music discovery based on listening patterns
+
+**Low Priority - Advanced Features:**
+
+7. **Analytics and Insights**
+   - User listening pattern analysis
+   - Playlist optimization suggestions  
+   - Music taste profiling and recommendations
+
+8. **Extended Content Support**
+   - Podcast and audiobook integration
+   - Social features (following, sharing)
+   - Integration with other music services
+
+### 🔧 Implementation Notes for LLM Tool Usage
+
+**Tool Parameter Best Practices:**
+```python
+@mcp.tool()
+def example_tool(
+    required_id: str,           # Always validate required params
+    limit: int = 20,           # Sensible defaults for pagination
+    offset: int = 0,           # Always start at 0
+    include_metadata: bool = True  # Feature flags for extended data
+) -> Dict[str, Any]:
+    """Clear single-line description.
+    
+    Extended description with usage context and performance notes.
+    
+    Args:
+        required_id: Specific format (e.g., "Spotify track ID (22 chars)")
+        limit: Range and recommendations (e.g., "1-50, default 20 for performance")
+        offset: Pagination guidance (e.g., "Use multiples of limit for pages")
+        include_metadata: When to enable (e.g., "Include for analysis, disable for speed")
+        
+    Returns:
+        Structured response with data and metadata sections
+        
+    Performance Tips:
+        - Use limit=50 for bulk operations
+        - Enable include_metadata only when analyzing data
+        - For large datasets, consider multiple smaller requests
+        
+    Example:
+        get_playlist_tracks("37i9dQZF1DX0XUsuxWHRQd", limit=100, offset=0)
+    """
+```
+
+**LLM Usage Hints in Documentation:**
+- Include realistic parameter ranges and recommendations
+- Explain when to use specific combinations of parameters  
+- Provide performance guidance for different use cases
+- Show example workflows for common scenarios
+
+This comprehensive approach ensures tools are both powerful and easy for LLMs to use effectively.
 
 ## API Usage Analysis & Improvement Plan
 
@@ -167,9 +515,8 @@ This is a Model Context Protocol (MCP) server that integrates Claude with Spotif
 - ✅ Structured error handling with MCP-compliant responses
 
 **Current Limitations:**
-- ❌ Only using MCP Tools - missing Resources and Prompts capabilities
 - ❌ No MCP-native OAuth/authentication flow implementation
-- ❌ Limited use of MCP's real-time notification system
+- ❌ Limited use of MCP's real-time notification system  
 - ❌ Missing context-aware parameter completion
 - ❌ No resource subscription or dynamic updates
 
@@ -181,10 +528,11 @@ This is a Model Context Protocol (MCP) server that integrates Claude with Spotif
 - ✅ Broad scope coverage (playback, playlists, library, user data)
 - ✅ Device validation and fallback handling
 - ✅ Rate limiting awareness through spotipy
+- ✅ **Full pagination support** for large datasets (playlists, search, user data)
+- ✅ **MCP Resources and Prompts** implemented for user/playback state
 
 **Current Limitations:**
 - ❌ Not leveraging Spotify's real-time features (Web Playback SDK integration)
-- ❌ Limited pagination handling for large result sets
 - ❌ Missing advanced search filters and recommendation endpoints
 - ❌ No webhook support for playback state changes
 - ❌ Authentication entirely external to MCP protocol
