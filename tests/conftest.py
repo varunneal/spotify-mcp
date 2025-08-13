@@ -41,11 +41,36 @@ SAMPLE_PLAYBACK_STATE = {
 SAMPLE_SEARCH_RESULTS = {
     "tracks": {
         "items": [SAMPLE_TRACK],
-        "total": 1
+        "total": 1,
+        "limit": 10,
+        "offset": 0,
+        "next": None,
+        "previous": None
     },
-    "albums": {"items": [], "total": 0},
-    "artists": {"items": [], "total": 0},
-    "playlists": {"items": [], "total": 0}
+    "albums": {
+        "items": [], 
+        "total": 0,
+        "limit": 10,
+        "offset": 0,
+        "next": None,
+        "previous": None
+    },
+    "artists": {
+        "items": [], 
+        "total": 0,
+        "limit": 10,
+        "offset": 0,
+        "next": None,
+        "previous": None
+    },
+    "playlists": {
+        "items": [], 
+        "total": 0,
+        "limit": 10,
+        "offset": 0,
+        "next": None,
+        "previous": None
+    }
 }
 
 
