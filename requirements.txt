@@ -1,0 +1,15 @@
+# Core dependencies from pyproject.toml
+mcp
+python-dotenv
+spotipy
+
+# Additional dependencies found in the code
+pydantic
+requests
+uvicorn
+
+# Development dependencies (optional)
+# Add these if you want to develop on the project
+pytest>=7.0.0
+black>=23.0.0
+flake8>=6.0.0
