@@ -102,8 +102,9 @@ class LikedSongs(ToolModel):
     - add: Add tracks to liked library.
     - remove: Remove tracks from liked library.
     - check: Check if tracks are liked.
+    - like_current: Like the currently playing track.
     """
-    action: str = Field(description="Action to perform: 'get', 'add', 'remove', 'check'.")
+    action: str = Field(description="Action to perform: 'get', 'add', 'remove', 'check', 'like_current'.")
     track_ids: Optional[List[str]] = Field(default=None, description="List of track IDs for 'add', 'remove', or 'check'.")
     limit: Optional[int] = Field(default=50, description="Max items to return for 'get'.")
     offset: Optional[int] = Field(default=0, description="Offset for 'get' pagination.")
@@ -437,10 +438,28 @@ async def handle_call_tool(
                             type="text",
                             text=json.dumps(liked_map, indent=2)
                         )]
+                    case "like_current":
+                        current_track = spotify_client.get_current_track()
+                        if not current_track:
+                            return [types.TextContent(
+                                type="text",
+                                text="No track currently playing to like."
+                            )]
+                        track_id = current_track.get('id')
+                        if not track_id:
+                            return [types.TextContent(
+                                type="text",
+                                text="Could not get track ID from current track."
+                            )]
+                        spotify_client.add_liked_tracks([track_id])
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Liked current track: {current_track.get('name', 'Unknown')} by {current_track.get('artist', 'Unknown')}"
+                        )]
                     case _:
                         return [types.TextContent(
                             type="text",
-                            text=f"Unknown liked songs action: {action}. Supported actions are: get, add, remove, check."
+                            text=f"Unknown liked songs action: {action}. Supported actions are: get, add, remove, check, like_current."
                         )]
             case _:
                 error_msg = f"Unknown tool: {name}"
