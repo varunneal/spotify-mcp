@@ -1,18 +1,11 @@
-import asyncio
-import base64
-import os
-import logging
-import sys
-from enum import Enum
 import json
-from typing import List, Optional, Tuple
-from datetime import datetime
-from pathlib import Path
+import sys
+from typing import List, Optional
 
-import mcp.types as types
-from mcp.server import NotificationOptions, Server  # , stdio_server
 import mcp.server.stdio
-from pydantic import BaseModel, Field, AnyUrl
+import mcp.types as types
+from mcp.server import Server  # , stdio_server
+from pydantic import BaseModel, Field
 from spotipy import SpotifyException
 
 from . import spotify_api
@@ -103,6 +96,19 @@ class Playlist(ToolModel):
     public: Optional[bool] = Field(default=True, description="Whether the playlist should be public (for create action).")
 
 
+class LikedSongs(ToolModel):
+    """Manage user's liked (saved) tracks.
+    - get: List liked tracks.
+    - add: Add tracks to liked library.
+    - remove: Remove tracks from liked library.
+    - check: Check if tracks are liked.
+    """
+    action: str = Field(description="Action to perform: 'get', 'add', 'remove', 'check'.")
+    track_ids: Optional[List[str]] = Field(default=None, description="List of track IDs for 'add', 'remove', or 'check'.")
+    limit: Optional[int] = Field(default=50, description="Max items to return for 'get'.")
+    offset: Optional[int] = Field(default=0, description="Offset for 'get' pagination.")
+
+
 @server.list_prompts()
 async def handle_list_prompts() -> list[types.Prompt]:
     return []
@@ -124,6 +130,7 @@ async def handle_list_tools() -> list[types.Tool]:
         Queue.as_tool(),
         GetInfo.as_tool(),
         Playlist.as_tool(),
+        LikedSongs.as_tool(),
     ]
     logger.info(f"Available tools: {[tool.name for tool in tools]}")
     return tools
@@ -209,7 +216,7 @@ async def handle_call_tool(
                         spotify_client.add_to_queue(track_id)
                         return [types.TextContent(
                             type="text",
-                            text=f"Track added to queue."
+                            text="Track added to queue."
                         )]
 
                     case "get":
@@ -351,6 +358,89 @@ async def handle_call_tool(
                             type="text",
                             text=f"Unknown playlist action: {action}."
                                  "Supported actions are: get, get_tracks, add_tracks, remove_tracks, change_details, create."
+                        )]
+            case "LikedSongs":
+                logger.info(f"LikedSongs operation with arguments: {arguments}")
+                action = arguments.get("action")
+                match action:
+                    case "get":
+                        limit = int(arguments.get("limit", 50))
+                        offset = int(arguments.get("offset", 0))
+                        liked = spotify_client.get_liked_tracks(limit=limit, offset=offset)
+                        return [types.TextContent(
+                            type="text",
+                            text=json.dumps(liked, indent=2)
+                        )]
+                    case "add":
+                        track_ids = arguments.get("track_ids")
+                        if isinstance(track_ids, str):
+                            try:
+                                track_ids = json.loads(track_ids)
+                            except json.JSONDecodeError:
+                                logger.error("track_ids must be a list or a valid JSON array.")
+                                return [types.TextContent(
+                                    type="text",
+                                    text="Error: track_ids must be a list or a valid JSON array."
+                                )]
+                        if not track_ids:
+                            logger.error("track_ids is required for add action.")
+                            return [types.TextContent(
+                                type="text",
+                                text="track_ids is required for add action."
+                            )]
+                        spotify_client.add_liked_tracks(track_ids)
+                        return [types.TextContent(
+                            type="text",
+                            text="Tracks added to liked songs."
+                        )]
+                    case "remove":
+                        track_ids = arguments.get("track_ids")
+                        if isinstance(track_ids, str):
+                            try:
+                                track_ids = json.loads(track_ids)
+                            except json.JSONDecodeError:
+                                logger.error("track_ids must be a list or a valid JSON array.")
+                                return [types.TextContent(
+                                    type="text",
+                                    text="Error: track_ids must be a list or a valid JSON array."
+                                )]
+                        if not track_ids:
+                            logger.error("track_ids is required for remove action.")
+                            return [types.TextContent(
+                                type="text",
+                                text="track_ids is required for remove action."
+                            )]
+                        spotify_client.remove_liked_tracks(track_ids)
+                        return [types.TextContent(
+                            type="text",
+                            text="Tracks removed from liked songs."
+                        )]
+                    case "check":
+                        track_ids = arguments.get("track_ids")
+                        if isinstance(track_ids, str):
+                            try:
+                                track_ids = json.loads(track_ids)
+                            except json.JSONDecodeError:
+                                logger.error("track_ids must be a list or a valid JSON array.")
+                                return [types.TextContent(
+                                    type="text",
+                                    text="Error: track_ids must be a list or a valid JSON array."
+                                )]
+                        if not track_ids:
+                            logger.error("track_ids is required for check action.")
+                            return [types.TextContent(
+                                type="text",
+                                text="track_ids is required for check action."
+                            )]
+                        liked_map = spotify_client.are_tracks_liked(track_ids)
+                        return [types.TextContent(
+                            type="text",
+                            text=json.dumps(liked_map, indent=2)
+                        )]
+                    case _:
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Unknown liked songs action: {action}. Supported actions are: get, add, remove, check."
                         )]
             case _:
                 error_msg = f"Unknown tool: {name}"
