@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
 import spotipy
 from dotenv import load_dotenv
@@ -33,7 +33,7 @@ class Client:
         """Initialize Spotify client with necessary permissions"""
         self.logger = logger
 
-        scope = "user-library-read,user-read-playback-state,user-modify-playback-state,user-read-currently-playing,playlist-read-private,playlist-read-collaborative,playlist-modify-private,playlist-modify-public"
+        scope = "user-library-read,user-library-modify,user-read-playback-state,user-modify-playback-state,user-read-currently-playing,playlist-read-private,playlist-read-collaborative,playlist-modify-private,playlist-modify-public"
 
         try:
             self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
@@ -130,7 +130,7 @@ class Client:
             self.logger.info(
                 f"Current track: {track_info.get('name', 'Unknown')} by {track_info.get('artist', 'Unknown')}")
             return track_info
-        except Exception as e:
+        except Exception:
             self.logger.error("Error getting current track info.")
             raise
 
@@ -195,12 +195,49 @@ class Client:
 
         return queue_info
 
-    def get_liked_songs(self):
-        # todo
-        results = self.sp.current_user_saved_tracks()
-        for idx, item in enumerate(results['items']):
-            track = item['track']
-            print(idx, track['artists'][0]['name'], " – ", track['name'])
+    def get_liked_songs(self, limit: int = 50, offset: int = 0) -> List[Dict]:
+        return self.get_liked_tracks(limit=limit, offset=offset)
+
+    def get_liked_tracks(self, limit: int = 50, offset: int = 0) -> List[Dict]:
+        try:
+            if not self.auth_ok():
+                self.auth_refresh()
+            results = self.sp.current_user_saved_tracks(limit=limit, offset=offset)
+            items = results.get('items', [])
+            return utils.parse_tracks(items)
+        except Exception as e:
+            self.logger.error(f"Error getting liked tracks: {str(e)}")
+            raise
+
+    def add_liked_tracks(self, track_ids: List[str]):
+        try:
+            if not self.auth_ok():
+                self.auth_refresh()
+            response = self.sp.current_user_saved_tracks_add(tracks=track_ids)
+            self.logger.info(f"Added liked tracks: {track_ids} response: {response}")
+        except Exception as e:
+            self.logger.error(f"Error adding liked tracks: {str(e)}")
+            raise
+
+    def remove_liked_tracks(self, track_ids: List[str]):
+        try:
+            if not self.auth_ok():
+                self.auth_refresh()
+            response = self.sp.current_user_saved_tracks_delete(tracks=track_ids)
+            self.logger.info(f"Removed liked tracks: {track_ids} response: {response}")
+        except Exception as e:
+            self.logger.error(f"Error removing liked tracks: {str(e)}")
+            raise
+
+    def are_tracks_liked(self, track_ids: List[str]) -> Dict[str, bool]:
+        try:
+            if not self.auth_ok():
+                self.auth_refresh()
+            contains = self.sp.current_user_saved_tracks_contains(tracks=track_ids)
+            return {track_id: is_saved for track_id, is_saved in zip(track_ids, contains)}
+        except Exception as e:
+            self.logger.error(f"Error checking liked tracks: {str(e)}")
+            raise
 
     def is_track_playing(self) -> bool:
         """Returns if a track is actively playing."""
