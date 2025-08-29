@@ -34,7 +34,7 @@ class Client:
         """Initialize Spotify client with necessary permissions"""
         self.logger = logger
 
-        scope = "user-library-read,user-read-playback-state,user-modify-playback-state,user-read-currently-playing,playlist-read-private,playlist-read-collaborative,playlist-modify-private,playlist-modify-public"
+        scope = ",".join(SCOPES)
 
         try:
             self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
