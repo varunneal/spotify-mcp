@@ -102,6 +102,32 @@ class Playlist(ToolModel):
     description: Optional[str] = Field(default=None, description="Description for the playlist.")
     public: Optional[bool] = Field(default=True, description="Whether the playlist should be public (for create action).")
 
+class RecentlyPlayed(ToolModel):
+    """Get recently played tracks with timestamps and play context."""
+    limit: Optional[int] = Field(default=50, description="Number of recent tracks (max 50)")
+    after: Optional[str] = Field(default=None, description="Unix timestamp in milliseconds for tracks after this time")
+
+
+class FollowedArtists(ToolModel):
+    """Get artists that the user follows."""
+    limit: Optional[int] = Field(default=20, description="Number of artists to return (max 50)")
+    after: Optional[str] = Field(default=None, description="Artist ID to start after for pagination")
+
+
+class TopContent(ToolModel):
+    """Get user's top artists or tracks over different time periods."""
+    content_type: str = Field(description="Type: 'artists' or 'tracks'")
+    time_range: Optional[str] = Field(
+        default="medium_term", 
+        description="Time range: short_term (4 weeks), medium_term (6 months), long_term (years)"
+    )
+    limit: Optional[int] = Field(default=20, description="Number of items to return (max 50)")
+
+
+class SavedTracks(ToolModel):
+    """Get user's saved (liked) tracks with metadata."""
+    limit: Optional[int] = Field(default=50, description="Number of tracks to return (max 50)")
+    offset: Optional[int] = Field(default=0, description="Offset for pagination")
 
 @server.list_prompts()
 async def handle_list_prompts() -> list[types.Prompt]:
@@ -124,6 +150,10 @@ async def handle_list_tools() -> list[types.Tool]:
         Queue.as_tool(),
         GetInfo.as_tool(),
         Playlist.as_tool(),
+        RecentlyPlayed.as_tool(),
+        FollowedArtists.as_tool(), 
+        TopContent.as_tool(),
+        SavedTracks.as_tool(),
     ]
     logger.info(f"Available tools: {[tool.name for tool in tools]}")
     return tools
@@ -352,6 +382,67 @@ async def handle_call_tool(
                             text=f"Unknown playlist action: {action}."
                                  "Supported actions are: get, get_tracks, add_tracks, remove_tracks, change_details, create."
                         )]
+
+            case "RecentlyPlayed":
+                logger.info(f"Getting recently played tracks with arguments: {arguments}")
+                recently_played = spotify_client.get_recently_played(
+                    limit=arguments.get("limit", 50),
+                    after=arguments.get("after")
+                )
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(recently_played, indent=2)
+                )]
+
+            case "FollowedArtists":
+                logger.info(f"Getting followed artists with arguments: {arguments}")
+                followed_artists = spotify_client.get_followed_artists(
+                    limit=arguments.get("limit", 20),
+                    after=arguments.get("after")
+                )
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(followed_artists, indent=2)
+                )]
+
+            case "TopContent":
+                logger.info(f"Getting top content with arguments: {arguments}")
+                content_type = arguments.get("content_type")
+                time_range = arguments.get("time_range", "medium_term")
+                limit = arguments.get("limit", 20)
+                
+                if content_type == "artists":
+                    top_content = spotify_client.get_top_artists(
+                        time_range=time_range,
+                        limit=limit
+                    )
+                elif content_type == "tracks":
+                    top_content = spotify_client.get_top_tracks(
+                        time_range=time_range,
+                        limit=limit
+                    )
+                else:
+                    return [types.TextContent(
+                        type="text",
+                        text=f"Invalid content_type: {content_type}. Must be 'artists' or 'tracks'."
+                    )]
+                
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(top_content, indent=2)
+                )]
+
+            case "SavedTracks":
+                logger.info(f"Getting saved tracks with arguments: {arguments}")
+                saved_tracks = spotify_client.get_saved_tracks(
+                    limit=arguments.get("limit", 50),
+                    offset=arguments.get("offset", 0)
+                )
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(saved_tracks, indent=2)
+                )]
+            
             case _:
                 error_msg = f"Unknown tool: {name}"
                 logger.error(error_msg)
