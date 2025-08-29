@@ -25,6 +25,7 @@ SCOPES = ["user-read-currently-playing", "user-read-playback-state", "user-read-
           # playlists
           "user-read-playback-position", "user-top-read", "user-read-recently-played",  # listening history
           "user-library-modify", "user-library-read",  # library
+          "user-follow-read" # get user's followed artists
           ]
 
 
@@ -33,7 +34,7 @@ class Client:
         """Initialize Spotify client with necessary permissions"""
         self.logger = logger
 
-        scope = "user-library-read,user-read-playback-state,user-modify-playback-state,user-read-currently-playing,playlist-read-private,playlist-read-collaborative,playlist-modify-private,playlist-modify-public"
+        scope = ",".join(SCOPES)
 
         try:
             self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
@@ -361,3 +362,136 @@ class Client:
 
     def set_volume(self, volume_percent):
         self.sp.volume(volume_percent)
+
+    @utils.validate
+    def get_recently_played(self, limit=50, after=None, device=None):
+        """
+        Get recently played tracks with timestamps.
+        - limit: Max number of tracks to return (max 50)
+        - after: Unix timestamp in milliseconds for tracks after this time
+        """
+        try:
+            results = self.sp.current_user_recently_played(limit=limit, after=after)
+            if not results or 'items' not in results:
+                return {'items': [], 'cursors': {}, 'total': 0}
+            
+            parsed_tracks = []
+            for item in results['items']:
+                track_info = utils.parse_track(item['track'], detailed=True)
+                track_info['played_at'] = item['played_at']
+                track_info['context'] = item.get('context')
+                parsed_tracks.append(track_info)
+            
+            return {
+                'items': parsed_tracks,
+                'cursors': results.get('cursors', {}),
+                'total': len(parsed_tracks)
+            }
+        except Exception as e:
+            self.logger.error(f"Error getting recently played tracks: {str(e)}")
+            raise
+
+    @utils.validate  
+    def get_followed_artists(self, limit=20, after=None, device=None):
+        """
+        Get artists that the user follows.
+        - limit: Max number of artists to return (max 50)
+        - after: Artist ID to start after for pagination
+        """
+        try:
+            results = self.sp.current_user_followed_artists(limit=limit, after=after)
+            if not results or 'artists' not in results or 'items' not in results['artists']:
+                return {'items': [], 'cursors': {}, 'total': 0}
+            
+            parsed_artists = []
+            for artist in results['artists']['items']:
+                artist_info = utils.parse_artist(artist, detailed=True)
+                parsed_artists.append(artist_info)
+            
+            return {
+                'items': parsed_artists,
+                'cursors': results['artists'].get('cursors', {}),
+                'total': results['artists'].get('total', len(parsed_artists))
+            }
+        except Exception as e:
+            self.logger.error(f"Error getting followed artists: {str(e)}")
+            raise
+
+    @utils.validate
+    def get_top_artists(self, time_range="medium_term", limit=20, device=None):
+        """
+        Get user's top artists over different time periods.
+        - time_range: short_term (4 weeks), medium_term (6 months), long_term (years)
+        - limit: Max number of artists to return (max 50)
+        """
+        try:
+            results = self.sp.current_user_top_artists(time_range=time_range, limit=limit)
+            if not results or 'items' not in results:
+                return {'items': [], 'total': 0}
+            
+            parsed_artists = []
+            for artist in results['items']:
+                artist_info = utils.parse_artist(artist, detailed=True)
+                parsed_artists.append(artist_info)
+            
+            return {
+                'items': parsed_artists,
+                'total': results.get('total', len(parsed_artists)),
+                'time_range': time_range
+            }
+        except Exception as e:
+            self.logger.error(f"Error getting top artists: {str(e)}")
+            raise
+
+    @utils.validate
+    def get_top_tracks(self, time_range="medium_term", limit=20, device=None):
+        """
+        Get user's top tracks over different time periods.
+        - time_range: short_term (4 weeks), medium_term (6 months), long_term (years)
+        - limit: Max number of tracks to return (max 50)
+        """
+        try:
+            results = self.sp.current_user_top_tracks(time_range=time_range, limit=limit)
+            if not results or 'items' not in results:
+                return {'items': [], 'total': 0}
+            
+            parsed_tracks = []
+            for track in results['items']:
+                track_info = utils.parse_track(track, detailed=True)
+                parsed_tracks.append(track_info)
+            
+            return {
+                'items': parsed_tracks,
+                'total': results.get('total', len(parsed_tracks)),
+                'time_range': time_range
+            }
+        except Exception as e:
+            self.logger.error(f"Error getting top tracks: {str(e)}")
+            raise
+
+    @utils.validate
+    def get_saved_tracks(self, limit=50, offset=0, device=None):
+        """
+        Get user's saved/liked tracks with full metadata.
+        - limit: Max number of tracks to return (max 50)
+        - offset: Offset for pagination
+        """
+        try:
+            results = self.sp.current_user_saved_tracks(limit=limit, offset=offset)
+            if not results or 'items' not in results:
+                return {'items': [], 'total': 0}
+            
+            parsed_tracks = []
+            for item in results['items']:
+                track_info = utils.parse_track(item['track'], detailed=True)
+                track_info['added_at'] = item['added_at']
+                parsed_tracks.append(track_info)
+            
+            return {
+                'items': parsed_tracks,
+                'total': results.get('total', len(parsed_tracks)),
+                'offset': offset
+            }
+        except Exception as e:
+            self.logger.error(f"Error getting saved tracks: {str(e)}")
+            raise
