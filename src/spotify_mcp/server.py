@@ -101,6 +101,8 @@ class Playlist(ToolModel):
     name: Optional[str] = Field(default=None, description="Name for the playlist (required for create and change_details).")
     description: Optional[str] = Field(default=None, description="Description for the playlist.")
     public: Optional[bool] = Field(default=True, description="Whether the playlist should be public (for create action).")
+    limit: Optional[int] = Field(default=100, ge=1, le=100, description="Max tracks per page (1-100)")
+    offset: Optional[int] = Field(default=0, ge=0, description="Starting index for pagination")
 
 
 @server.list_prompts()
@@ -254,10 +256,16 @@ async def handle_call_tool(
                                 type="text",
                                 text="playlist_id is required for get_tracks action."
                             )]
-                        tracks = spotify_client.get_playlist_tracks(arguments.get("playlist_id"))
+                        limit = int(arguments.get("limit", 100))  # Default to 100 (Spotify max)
+                        offset = int(arguments.get("offset", 0))
+                        result = spotify_client.get_playlist_tracks(
+                            arguments.get("playlist_id"),
+                            limit=limit,
+                            offset=offset
+                        )
                         return [types.TextContent(
                             type="text",
-                            text=json.dumps(tracks, indent=2)
+                            text=json.dumps(result, indent=2)
                         )]
                     case "add_tracks":
                         logger.info(f"Adding tracks to playlist with arguments: {arguments}")
