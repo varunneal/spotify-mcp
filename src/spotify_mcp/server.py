@@ -61,6 +61,8 @@ class Playback(ToolModel):
     spotify_uri: Optional[str] = Field(default=None, description="Spotify uri of item to play for 'start' action. " +
                                                                  "If omitted, resumes current playback.")
     num_skips: Optional[int] = Field(default=1, description="Number of tracks to skip for `skip` action.")
+    device_id: Optional[str] = Field(default=None, description="Optional device ID to start playback on. " +
+                                                                "Use Devices tool to get available device IDs.")
 
 
 class Queue(ToolModel):
@@ -103,6 +105,16 @@ class Playlist(ToolModel):
     public: Optional[bool] = Field(default=True, description="Whether the playlist should be public (for create action).")
 
 
+class Devices(ToolModel):
+    """Manage Spotify playback devices.
+    - list: Get all available Spotify Connect devices.
+    - transfer: Transfer playback to a specific device.
+    """
+    action: str = Field(description="Action to perform: 'list' or 'transfer'.")
+    device_id: Optional[str] = Field(default=None, description="Device ID to transfer playback to (required for transfer action).")
+    play: Optional[bool] = Field(default=True, description="Whether to start playing after transfer (default: true).")
+
+
 @server.list_prompts()
 async def handle_list_prompts() -> list[types.Prompt]:
     return []
@@ -124,6 +136,7 @@ async def handle_list_tools() -> list[types.Tool]:
         Queue.as_tool(),
         GetInfo.as_tool(),
         Playlist.as_tool(),
+        Devices.as_tool(),
     ]
     logger.info(f"Available tools: {[tool.name for tool in tools]}")
     return tools
@@ -157,7 +170,22 @@ async def handle_call_tool(
                         )]
                     case "start":
                         logger.info(f"Starting playback with arguments: {arguments}")
-                        spotify_client.start_playback(spotify_uri=arguments.get("spotify_uri"))
+                        spotify_uri = arguments.get("spotify_uri")
+                        device_id = arguments.get("device_id")
+
+                        # If device_id is specified, use direct spotipy call for device control
+                        if device_id:
+                            logger.info(f"Starting playback on device {device_id}")
+                            if spotify_uri:
+                                if spotify_uri.startswith('spotify:track:'):
+                                    spotify_client.sp.start_playback(device_id=device_id, uris=[spotify_uri])
+                                else:
+                                    spotify_client.sp.start_playback(device_id=device_id, context_uri=spotify_uri)
+                            else:
+                                spotify_client.sp.start_playback(device_id=device_id)
+                        else:
+                            spotify_client.start_playback(spotify_uri=spotify_uri)
+
                         logger.info("Playback started successfully")
                         return [types.TextContent(
                             type="text",
@@ -352,6 +380,42 @@ async def handle_call_tool(
                             text=f"Unknown playlist action: {action}."
                                  "Supported actions are: get, get_tracks, add_tracks, remove_tracks, change_details, create."
                         )]
+
+            case "Devices":
+                logger.info(f"Devices operation with arguments: {arguments}")
+                action = arguments.get("action")
+                match action:
+                    case "list":
+                        logger.info("Getting list of available devices")
+                        devices = spotify_client.get_devices()
+                        return [types.TextContent(
+                            type="text",
+                            text=json.dumps(devices, indent=2)
+                        )]
+
+                    case "transfer":
+                        device_id = arguments.get("device_id")
+                        if not device_id:
+                            logger.error("device_id is required for transfer action")
+                            return [types.TextContent(
+                                type="text",
+                                text="device_id is required for transfer action"
+                            )]
+
+                        play = arguments.get("play", True)
+                        logger.info(f"Transferring playback to device {device_id}, play={play}")
+                        spotify_client.sp.transfer_playback(device_id=device_id, force_play=play)
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Playback transferred to device {device_id}"
+                        )]
+
+                    case _:
+                        return [types.TextContent(
+                            type="text",
+                            text=f"Unknown devices action: {action}. Supported actions are: list, transfer."
+                        )]
+
             case _:
                 error_msg = f"Unknown tool: {name}"
                 logger.error(error_msg)
