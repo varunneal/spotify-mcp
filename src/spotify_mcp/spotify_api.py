@@ -228,10 +228,10 @@ class Client:
         - playlist_id: ID of the playlist to get tracks from.
         - limit: Max number of tracks to return.
         """
-        playlist = self.sp.playlist(playlist_id)
-        if not playlist:
+        response = self.sp._get(f"playlists/{playlist_id}/items", limit=limit)
+        if not response:
             raise ValueError("No playlist found.")
-        return utils.parse_tracks(playlist['tracks']['items'])
+        return utils.parse_tracks(response.get('items', []))
     
     @utils.ensure_username
     def add_tracks_to_playlist(self, playlist_id: str, track_ids: List[str], position: Optional[int] = None):
@@ -247,10 +247,15 @@ class Client:
             raise ValueError("No track IDs provided.")
         
         try:
-            response = self.sp.playlist_add_items(playlist_id, track_ids, position=position)
+            uris = [f"spotify:track:{tid}" if not tid.startswith("spotify:") else tid for tid in track_ids]
+            payload = {"uris": uris}
+            if position is not None:
+                payload["position"] = position
+            response = self.sp._post(f"playlists/{playlist_id}/items", payload=payload)
             self.logger.info(f"Response from adding tracks: {track_ids} to playlist {playlist_id}: {response}")
         except Exception as e:
             self.logger.error(f"Error adding tracks to playlist: {str(e)}")
+            raise
 
     @utils.ensure_username
     def remove_tracks_from_playlist(self, playlist_id: str, track_ids: List[str]):
@@ -265,7 +270,8 @@ class Client:
             raise ValueError("No track IDs provided.")
         
         try:
-            response = self.sp.playlist_remove_all_occurrences_of_items(playlist_id, track_ids)
+            uris = [f"spotify:track:{tid}" if not tid.startswith("spotify:") else tid for tid in track_ids]
+            response = self.sp._delete(f"playlists/{playlist_id}/items", payload={"tracks": [{"uri": u} for u in uris]})
             self.logger.info(f"Response from removing tracks: {track_ids} from playlist {playlist_id}: {response}")
         except Exception as e:
             self.logger.error(f"Error removing tracks from playlist: {str(e)}")
@@ -282,17 +288,15 @@ class Client:
             raise ValueError("Playlist name is required.")
         
         try:
-            user = self.sp.current_user()
-            user_id = user['id']
-            
-            playlist = self.sp.user_playlist_create(
-                user=user_id,
-                name=name,
-                public=public,
-                description=description
-            )
+            data = {
+                "name": name,
+                "public": public,
+                "collaborative": False,
+                "description": description or "",
+            }
+            playlist = self.sp._post("me/playlists", payload=data)
             self.logger.info(f"Created playlist: {name} (ID: {playlist['id']})")
-            return utils.parse_playlist(playlist, self.username, detailed=True)
+            return utils.parse_playlist(playlist, self.username, detailed=False)
         except Exception as e:
             self.logger.error(f"Error creating playlist: {str(e)}")
             raise
