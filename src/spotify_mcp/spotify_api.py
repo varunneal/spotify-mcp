@@ -211,15 +211,22 @@ class Client:
             return True
         return False
 
+
+    @utils.ensure_username
     def get_current_user_playlists(self, limit=50) -> List[Dict]:
-        """
-        Get current user's playlists.
-        - limit: Max number of playlists to return.
-        """
-        playlists = self.sp.current_user_playlists()
-        if not playlists:
+        playlists = []
+        results = self.sp.current_user_playlists(limit=50)
+        if not results:
             raise ValueError("No playlists found.")
-        return [utils.parse_playlist(playlist, self.username) for playlist in playlists['items']]
+        while results:
+            for playlist in results['items']:
+                if playlist:
+                    playlists.append(utils.parse_playlist(playlist, self.username))
+            if results['next']:
+                results = self.sp.next(results)
+            else:
+                break
+        return playlists
     
     @utils.ensure_username
     def get_playlist_tracks(self, playlist_id: str, limit=50) -> List[Dict]:
