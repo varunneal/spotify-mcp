@@ -8,6 +8,7 @@ import json
 from typing import List, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
+from difflib import SequenceMatcher
 
 import mcp.types as types
 from mcp.server import NotificationOptions, Server  # , stdio_server
@@ -37,6 +38,32 @@ if spotify_api.REDIRECT_URI:
 spotify_client = spotify_api.Client(logger)
 
 server = Server("spotify-mcp")
+
+
+def find_best_match(query: str, items: List[dict]) -> dict:
+    """Find the best matching item based on title similarity."""
+    if not items:
+        return None
+    
+    query_lower = query.lower().strip()
+    best_match = items[0]
+    best_ratio = 0
+    
+    for item in items:
+        item_name = item.get('name', '').lower().strip()
+        # Calculate similarity ratio
+        ratio = SequenceMatcher(None, query_lower, item_name).ratio()
+        
+        # Also check if query is contained in the item name for exact substring matches
+        if query_lower in item_name:
+            ratio += 0.2  # Boost for substring matches
+            
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_match = item
+    
+    logger.info(f"Best match for '{query}': '{best_match.get('name', 'Unknown')}' (similarity: {best_ratio:.2f})")
+    return best_match
 
 
 # options =
@@ -85,6 +112,13 @@ class Search(ToolModel):
     limit: Optional[int] = Field(default=10, description="Maximum number of items to return")
 
 
+class Play(ToolModel):
+    """Search for music and immediately play it. This tool combines search and playback functionality."""
+    query: str = Field(description="Search query for the music you want to play")
+    qtype: Optional[str] = Field(default="track", 
+                                 description="Type of item to search for and play (track, album, artist, playlist)")
+
+
 class Playlist(ToolModel):
     """Manage Spotify playlists.
     - get: Get a list of user's playlists.
@@ -121,6 +155,7 @@ async def handle_list_tools() -> list[types.Tool]:
     tools = [
         Playback.as_tool(),
         Search.as_tool(),
+        Play.as_tool(),
         Queue.as_tool(),
         GetInfo.as_tool(),
         Playlist.as_tool(),
@@ -191,6 +226,59 @@ async def handle_call_tool(
                 return [types.TextContent(
                     type="text",
                     text=json.dumps(search_results, indent=2)
+                )]
+
+            case "Play":
+                logger.info(f"Performing play (search + playback) with arguments: {arguments}")
+                query = arguments.get("query", "")
+                qtype = arguments.get("qtype", "track")
+                
+                # Search for more results to find the best match
+                search_results = spotify_client.search(
+                    query=query,
+                    qtype=qtype,
+                    limit=5
+                )
+                
+                # The search results are structured as {qtype + 's': [list of items]}
+                qtype_plural = qtype + 's'
+                if not search_results or qtype_plural not in search_results or not search_results[qtype_plural]:
+                    logger.info(f"No {qtype} found for query: {query}")
+                    return [types.TextContent(
+                        type="text",
+                        text=f"No {qtype} found for query: {query}"
+                    )]
+                
+                # Find the best matching item based on title similarity
+                items = search_results[qtype_plural]
+                item = find_best_match(query, items)
+                
+                if not item:
+                    logger.error("No matching item found")
+                    return [types.TextContent(
+                        type="text",
+                        text="Error: No matching item found"
+                    )]
+                
+                item_id = item.get('id')
+                item_name = item.get('name', 'Unknown')
+                
+                if not item_id:
+                    logger.error("No ID found in search result")
+                    return [types.TextContent(
+                        type="text",
+                        text="Error: Could not get ID from search result"
+                    )]
+                
+                # Construct the Spotify URI from the type and ID
+                item_uri = f"spotify:{qtype}:{item_id}"
+                
+                logger.info(f"Starting playback for {qtype}: {item_name} (URI: {item_uri})")
+                spotify_client.start_playback(spotify_uri=item_uri)
+                
+                return [types.TextContent(
+                    type="text",
+                    text=f"Now playing: {item_name}"
                 )]
 
             case "Queue":
