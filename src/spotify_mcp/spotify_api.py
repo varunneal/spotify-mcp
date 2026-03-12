@@ -282,15 +282,12 @@ class Client:
             raise ValueError("Playlist name is required.")
         
         try:
-            user = self.sp.current_user()
-            user_id = user['id']
-            
-            playlist = self.sp.user_playlist_create(
-                user=user_id,
-                name=name,
-                public=public,
-                description=description
-            )
+            # Use /me/playlists instead of /users/{user_id}/playlists
+            # because the latter returns 403 for apps in Development Mode.
+            payload = {"name": name, "public": public}
+            if description:
+                payload["description"] = description
+            playlist = self.sp._post("me/playlists", payload=payload)
             self.logger.info(f"Created playlist: {name} (ID: {playlist['id']})")
             return utils.parse_playlist(playlist, self.username, detailed=True)
         except Exception as e:
