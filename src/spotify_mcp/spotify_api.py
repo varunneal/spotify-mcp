@@ -222,16 +222,29 @@ class Client:
         return [utils.parse_playlist(playlist, self.username) for playlist in playlists['items']]
     
     @utils.ensure_username
-    def get_playlist_tracks(self, playlist_id: str, limit=50) -> List[Dict]:
+    def get_playlist_tracks(self, playlist_id: str, limit: int=50, offset: int=0) -> Dict:
         """
         Get tracks from a playlist.
         - playlist_id: ID of the playlist to get tracks from.
         - limit: Max number of tracks to return.
+        - offset: The index of the first track to return.
+        Returns: Dict with 'items' (tracks), 'total', 'limit', 'offset', 'next' (bool)
         """
-        playlist = self.sp.playlist(playlist_id)
+        # The max limit is documented as 50 but the real limit seems to be 100
+        limit = min(limit, 100)
+
+        playlist = self.sp.playlist_tracks(playlist_id, limit=limit, offset=offset)
         if not playlist:
             raise ValueError("No playlist found.")
-        return utils.parse_tracks(playlist['tracks']['items'])
+    
+        tracks = utils.parse_tracks(playlist['items'])
+        return {
+            'items': tracks,
+            'total': playlist['total'],
+            'limit': playlist['limit'],
+            'offset': playlist['offset'],
+            'next': playlist['next'] is not None
+        }
     
     @utils.ensure_username
     def add_tracks_to_playlist(self, playlist_id: str, track_ids: List[str], position: Optional[int] = None):
