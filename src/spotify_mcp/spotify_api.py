@@ -35,12 +35,22 @@ class Client:
 
         scope = "user-library-read,user-read-playback-state,user-modify-playback-state,user-read-currently-playing,playlist-read-private,playlist-read-collaborative,playlist-modify-private,playlist-modify-public"
 
+        # Get cache path from environment variable if set
+        cache_path = os.getenv("SPOTIPY_CACHE_PATH")
+
         try:
-            self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-                scope=scope,
-                client_id=CLIENT_ID,
-                client_secret=CLIENT_SECRET,
-                redirect_uri=REDIRECT_URI))
+            auth_kwargs = {
+                "scope": scope,
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "redirect_uri": REDIRECT_URI
+            }
+
+            # Add cache_path if specified
+            if cache_path:
+                auth_kwargs["cache_path"] = cache_path
+
+            self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(**auth_kwargs))
 
             self.auth_manager: SpotifyOAuth = self.sp.auth_manager
             self.cache_handler: CacheFileHandler = self.auth_manager.cache_handler
