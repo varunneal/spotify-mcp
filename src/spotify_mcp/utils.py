@@ -76,6 +76,7 @@ def parse_playlist(playlist_item: dict, username, detailed=False) -> Optional[di
         'name': playlist_item['name'],
         'id': playlist_item['id'],
         'owner': playlist_item['owner']['display_name'],
+        'owner_id': playlist_item['owner'].get('id'),
         'user_is_owner': playlist_item['owner']['display_name'] == username,
         'total_tracks': playlist_item['tracks']['total'],
     }
@@ -144,6 +145,36 @@ def parse_search_results(results: Dict, qtype: str, username: Optional[str] = No
 
     return dict(_results)
 
+def parse_top_artist(artist_item: dict) -> dict:
+    """Shape a top-artist entry: keeps genres and popularity (both present on top-artist responses)."""
+    return {
+        'id': artist_item['id'],
+        'name': artist_item['name'],
+        'genres': artist_item.get('genres', []),
+        'popularity': artist_item.get('popularity'),
+    }
+
+
+def genre_histogram(top_artists_raw: list, limit: int = 20) -> list:
+    """Count genre occurrences across a list of raw top-artist objects. Returns sorted [{name, count}]."""
+    from collections import Counter
+    counter: Counter = Counter()
+    for a in top_artists_raw:
+        counter.update(a.get('genres') or [])
+    return [{'name': g, 'count': c} for g, c in counter.most_common(limit)]
+
+
+def parse_recently_played_item(item: dict) -> dict:
+    """Shape a single item from current_user_recently_played into a compact dict."""
+    context = item.get('context') or {}
+    return {
+        'track': parse_track(item['track']),
+        'played_at': item.get('played_at'),
+        'context_uri': context.get('uri'),
+        'context_type': context.get('type'),
+    }
+
+
 def parse_tracks(items: Dict) -> list:
     """
     Parse a list of track items and return a list of parsed tracks.
@@ -152,12 +183,15 @@ def parse_tracks(items: Dict) -> list:
         items: List of track items
     Returns:
         List of parsed tracks
-    """ 
+    """
     tracks = []
     for idx, item in enumerate(items):
         if not item:
             continue
-        tracks.append(parse_track(item['track']))
+        parsed = parse_track(item['track'])
+        if parsed is not None and item.get('added_at'):
+            parsed['added_at'] = item['added_at']
+        tracks.append(parsed)
     return tracks
 
 
@@ -211,6 +245,20 @@ def build_search_query(base_query: str,
 
     query_parts = [base_query] + filters
     return quote(" ".join(query_parts))
+
+
+def ensure_auth(func: Callable[..., T]) -> Callable[..., T]:
+    """Decorator that refreshes the Spotify auth token when expired.
+    Does not assign a device — use for read-only methods like search, history, top items.
+    """
+
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if not self.auth_ok():
+            self.auth_refresh()
+        return func(self, *args, **kwargs)
+
+    return wrapper
 
 
 def validate(func: Callable[..., T]) -> Callable[..., T]:

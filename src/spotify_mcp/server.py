@@ -1,21 +1,23 @@
-import asyncio
-import base64
-import os
-import logging
-import sys
-from enum import Enum
 import json
-from typing import List, Optional, Tuple
-from datetime import datetime
-from pathlib import Path
+import sys
 
 import mcp.types as types
-from mcp.server import NotificationOptions, Server  # , stdio_server
+from mcp.server import Server
 import mcp.server.stdio
-from pydantic import BaseModel, Field, AnyUrl
 from spotipy import SpotifyException
 
 from . import spotify_api
+from .tool_models import (
+    GetInfo,
+    History,
+    Playback,
+    Playlist,
+    Queue,
+    Search,
+    SmartPlay,
+    TasteProfile,
+    ToolModel,
+)
 from .utils import normalize_redirect_uri
 
 
@@ -39,70 +41,6 @@ spotify_client = spotify_api.Client(logger)
 server = Server("spotify-mcp")
 
 
-# options =
-class ToolModel(BaseModel):
-    @classmethod
-    def as_tool(cls):
-        return types.Tool(
-            name="Spotify" + cls.__name__,
-            description=cls.__doc__,
-            inputSchema=cls.model_json_schema()
-        )
-
-
-class Playback(ToolModel):
-    """Manages the current playback with the following actions:
-    - get: Get information about user's current track.
-    - start: Starts playing new item or resumes current playback if called with no uri.
-    - pause: Pauses current playback.
-    - skip: Skips current track.
-    """
-    action: str = Field(description="Action to perform: 'get', 'start', 'pause' or 'skip'.")
-    spotify_uri: Optional[str] = Field(default=None, description="Spotify uri of item to play for 'start' action. " +
-                                                                 "If omitted, resumes current playback.")
-    num_skips: Optional[int] = Field(default=1, description="Number of tracks to skip for `skip` action.")
-
-
-class Queue(ToolModel):
-    """Manage the playback queue - get the queue or add tracks."""
-    action: str = Field(description="Action to perform: 'add' or 'get'.")
-    track_id: Optional[str] = Field(default=None, description="Track ID to add to queue (required for add action)")
-
-
-class GetInfo(ToolModel):
-    """Get detailed information about a Spotify item (track, album, artist, or playlist)."""
-    item_uri: str = Field(description="URI of the item to get information about. " +
-                                      "If 'playlist' or 'album', returns its tracks. " +
-                                      "If 'artist', returns albums and top tracks.")
-
-
-class Search(ToolModel):
-    """Search for tracks, albums, artists, or playlists on Spotify."""
-    query: str = Field(description="query term")
-    qtype: Optional[str] = Field(default="track",
-                                 description="Type of items to search for (track, album, artist, playlist, " +
-                                             "or comma-separated combination)")
-    limit: Optional[int] = Field(default=10, description="Maximum number of items to return")
-
-
-class Playlist(ToolModel):
-    """Manage Spotify playlists.
-    - get: Get a list of user's playlists.
-    - get_tracks: Get tracks in a specific playlist.
-    - add_tracks: Add tracks to a specific playlist.
-    - remove_tracks: Remove tracks from a specific playlist.
-    - change_details: Change details of a specific playlist.
-    - create: Create a new playlist.
-    """
-    action: str = Field(
-        description="Action to perform: 'get', 'get_tracks', 'add_tracks', 'remove_tracks', 'change_details', 'create'.")
-    playlist_id: Optional[str] = Field(default=None, description="ID of the playlist to manage.")
-    track_ids: Optional[List[str]] = Field(default=None, description="List of track IDs to add/remove.")
-    name: Optional[str] = Field(default=None, description="Name for the playlist (required for create and change_details).")
-    description: Optional[str] = Field(default=None, description="Description for the playlist.")
-    public: Optional[bool] = Field(default=True, description="Whether the playlist should be public (for create action).")
-
-
 @server.list_prompts()
 async def handle_list_prompts() -> list[types.Prompt]:
     return []
@@ -124,6 +62,9 @@ async def handle_list_tools() -> list[types.Tool]:
         Queue.as_tool(),
         GetInfo.as_tool(),
         Playlist.as_tool(),
+        History.as_tool(),
+        TasteProfile.as_tool(),
+        SmartPlay.as_tool(),
     ]
     logger.info(f"Available tools: {[tool.name for tool in tools]}")
     return tools
@@ -178,6 +119,13 @@ async def handle_call_tool(
                         return [types.TextContent(
                             type="text",
                             text="Skipped to next track."
+                        )]
+                    case "previous":
+                        logger.info("Skipping to previous track.")
+                        spotify_client.previous_track()
+                        return [types.TextContent(
+                            type="text",
+                            text="Skipped to previous track."
                         )]
 
             case "Search":
@@ -352,6 +300,53 @@ async def handle_call_tool(
                             text=f"Unknown playlist action: {action}."
                                  "Supported actions are: get, get_tracks, add_tracks, remove_tracks, change_details, create."
                         )]
+
+            case "History":
+                logger.info(f"History operation with arguments: {arguments}")
+                items = spotify_client.get_recently_played(
+                    limit=int(arguments.get("limit", 20)),
+                    after=arguments.get("after"),
+                    before=arguments.get("before"),
+                )
+                if not items:
+                    return [types.TextContent(type="text", text="No recently played tracks found.")]
+                return [types.TextContent(type="text", text=json.dumps(items, indent=2))]
+
+            case "TasteProfile":
+                logger.info(f"TasteProfile operation with arguments: {arguments}")
+                action = arguments.get("action", "profile")
+                time_range = arguments.get("time_range", "medium_term")
+                limit = int(arguments.get("limit", 20))
+                refresh = bool(arguments.get("refresh", False))
+                if action == "profile":
+                    profile = spotify_client.get_taste_profile(
+                        time_range=time_range, limit=limit, refresh=refresh
+                    )
+                    public = {k: v for k, v in profile.items() if not k.startswith("_")}
+                    return [types.TextContent(type="text", text=json.dumps(public, indent=2))]
+                if action in ("tracks", "artists"):
+                    items = spotify_client.get_top_items(
+                        entity=action, time_range=time_range, limit=limit
+                    )
+                    return [types.TextContent(type="text", text=json.dumps(items, indent=2))]
+                return [types.TextContent(
+                    type="text",
+                    text=f"Unknown TasteProfile action: {action}. Supported: profile, tracks, artists."
+                )]
+
+            case "SmartPlay":
+                logger.info(f"SmartPlay operation with arguments: {arguments}")
+                result = spotify_client.smart_play(
+                    query=arguments.get("query", ""),
+                    prefer=arguments.get("prefer"),
+                    auto_play=bool(arguments.get("auto_play", True)),
+                    limit=int(arguments.get("limit", 10)),
+                )
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(result, indent=2, default=str)
+                )]
+
             case _:
                 error_msg = f"Unknown tool: {name}"
                 logger.error(error_msg)
