@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from typing import Optional, Dict, List
 
 import spotipy
@@ -50,7 +51,6 @@ class Client:
 
         self.username = None
 
-    @utils.validate
     def set_username(self, device=None):
         self.username = self.sp.current_user()['display_name']
 
@@ -89,15 +89,26 @@ class Client:
                 return album_info
             case 'artist':
                 artist_info = utils.parse_artist(self.sp.artist(item_id), detailed=True)
-                albums = self.sp.artist_albums(item_id)
+                try:
+                    albums = self.sp.artist_albums(
+                        item_id,
+                        album_type="album,single",
+                        limit=10,
+                        offset=0,
+                    )
+                except Exception as e:
+                    self.logger.error(f"Error getting artist albums: {str(e)}")
+                    albums = {'items': []}
+                    artist_info['albums_error'] = str(e)
+
                 top_tracks = self.sp.artist_top_tracks(item_id)['tracks']
                 albums_and_tracks = {
                     'albums': albums,
                     'tracks': {'items': top_tracks}
                 }
                 parsed_info = utils.parse_search_results(albums_and_tracks, qtype="album,track")
-                artist_info['top_tracks'] = parsed_info['tracks']
-                artist_info['albums'] = parsed_info['albums']
+                artist_info['top_tracks'] = parsed_info.get('tracks', [])
+                artist_info['albums'] = parsed_info.get('albums', [])
 
                 return artist_info
             case 'playlist':
@@ -216,24 +227,77 @@ class Client:
         Get current user's playlists.
         - limit: Max number of playlists to return.
         """
-        playlists = self.sp.current_user_playlists()
+        if self.username is None:
+            self.set_username()
+        playlists = self.sp.current_user_playlists(limit=limit)
         if not playlists:
             raise ValueError("No playlists found.")
         return [utils.parse_playlist(playlist, self.username) for playlist in playlists['items']]
     
-    @utils.ensure_username
     def get_playlist_tracks(self, playlist_id: str, limit=50) -> List[Dict]:
         """
         Get tracks from a playlist.
         - playlist_id: ID of the playlist to get tracks from.
         - limit: Max number of tracks to return.
         """
-        playlist = self.sp.playlist(playlist_id)
-        if not playlist:
-            raise ValueError("No playlist found.")
-        return utils.parse_tracks(playlist['tracks']['items'])
+        if not playlist_id:
+            raise ValueError("No playlist ID provided.")
+
+        playlist_items = self.sp.playlist_items(playlist_id, limit=limit)
+        items = playlist_items.get('items') or []
+        return utils.parse_tracks(items)
+
+    @staticmethod
+    def _normalize_track_uris(track_ids: List[str]) -> List[str]:
+        uris = []
+        for track_id in track_ids:
+            if track_id.startswith("spotify:track:") or track_id.startswith("http"):
+                uris.append(track_id)
+            else:
+                uris.append(f"spotify:track:{track_id}")
+        return uris
+
+    @staticmethod
+    def _track_id_from_uri(track_uri: str) -> str:
+        if track_uri.startswith("spotify:track:"):
+            return track_uri.split(":")[-1]
+        return track_uri.rstrip("/").split("/")[-1]
+
+    def _get_playlist_track_ids(self, playlist_id: str, limit=100) -> set[str]:
+        playlist_items = self.sp.playlist_items(playlist_id, limit=limit)
+        track_ids = set()
+        for item in playlist_items.get('items') or []:
+            track = None
+            if isinstance(item, dict):
+                track = item.get('item') or item.get('track')
+            if track and track.get('id'):
+                track_ids.add(track['id'])
+        return track_ids
+
+    def _wait_for_playlist_tracks(
+        self,
+        playlist_id: str,
+        track_ids: set[str],
+        should_exist: bool,
+        timeout_seconds: float = 10.0,
+    ) -> None:
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            current_ids = self._get_playlist_track_ids(playlist_id)
+            is_consistent = (
+                track_ids.issubset(current_ids)
+                if should_exist
+                else track_ids.isdisjoint(current_ids)
+            )
+            if is_consistent:
+                return
+            if time.monotonic() >= deadline:
+                state = "appear in" if should_exist else "be removed from"
+                raise TimeoutError(
+                    f"Timed out waiting for tracks {sorted(track_ids)} to {state} playlist {playlist_id}."
+                )
+            time.sleep(1)
     
-    @utils.ensure_username
     def add_tracks_to_playlist(self, playlist_id: str, track_ids: List[str], position: Optional[int] = None):
         """
         Add tracks to a playlist.
@@ -246,13 +310,21 @@ class Client:
         if not track_ids:
             raise ValueError("No track IDs provided.")
         
+        track_uris = self._normalize_track_uris(track_ids)
+        normalized_track_ids = {self._track_id_from_uri(track_uri) for track_uri in track_uris}
         try:
-            response = self.sp.playlist_add_items(playlist_id, track_ids, position=position)
-            self.logger.info(f"Response from adding tracks: {track_ids} to playlist {playlist_id}: {response}")
+            response = self.sp.playlist_add_items(playlist_id, track_uris, position=position)
+            self.logger.info(f"Response from adding tracks: {track_uris} to playlist {playlist_id}: {response}")
+            self._wait_for_playlist_tracks(
+                playlist_id,
+                normalized_track_ids,
+                should_exist=True,
+            )
+            return response
         except Exception as e:
             self.logger.error(f"Error adding tracks to playlist: {str(e)}")
+            raise
 
-    @utils.ensure_username
     def remove_tracks_from_playlist(self, playlist_id: str, track_ids: List[str]):
         """
         Remove tracks from a playlist.
@@ -264,11 +336,20 @@ class Client:
         if not track_ids:
             raise ValueError("No track IDs provided.")
         
+        track_uris = self._normalize_track_uris(track_ids)
+        normalized_track_ids = {self._track_id_from_uri(track_uri) for track_uri in track_uris}
         try:
-            response = self.sp.playlist_remove_all_occurrences_of_items(playlist_id, track_ids)
-            self.logger.info(f"Response from removing tracks: {track_ids} from playlist {playlist_id}: {response}")
+            response = self.sp.playlist_remove_all_occurrences_of_items(playlist_id, track_uris)
+            self.logger.info(f"Response from removing tracks: {track_uris} from playlist {playlist_id}: {response}")
+            self._wait_for_playlist_tracks(
+                playlist_id,
+                normalized_track_ids,
+                should_exist=False,
+            )
+            return response
         except Exception as e:
             self.logger.error(f"Error removing tracks from playlist: {str(e)}")
+            raise
 
     @utils.ensure_username
     def create_playlist(self, name: str, description: Optional[str] = None, public: bool = True):
@@ -292,7 +373,7 @@ class Client:
                 description=description
             )
             self.logger.info(f"Created playlist: {name} (ID: {playlist['id']})")
-            return utils.parse_playlist(playlist, self.username, detailed=True)
+            return utils.parse_playlist(playlist, self.username, detailed=False)
         except Exception as e:
             self.logger.error(f"Error creating playlist: {str(e)}")
             raise

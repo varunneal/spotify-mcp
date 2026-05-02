@@ -272,13 +272,16 @@ async def handle_call_tool(
                                     text="Error: track_ids must be a list or a valid JSON array."
                                 )]
 
-                        spotify_client.add_tracks_to_playlist(
+                        response = spotify_client.add_tracks_to_playlist(
                             playlist_id=arguments.get("playlist_id"),
                             track_ids=track_ids
                         )
                         return [types.TextContent(
                             type="text",
-                            text="Tracks added to playlist."
+                            text=json.dumps({
+                                "status": "Tracks added to playlist.",
+                                "spotify_response": response,
+                            }, indent=2)
                         )]
                     case "remove_tracks":
                         logger.info(f"Removing tracks from playlist with arguments: {arguments}")
@@ -293,13 +296,16 @@ async def handle_call_tool(
                                     text="Error: track_ids must be a list or a valid JSON array."
                                 )]
 
-                        spotify_client.remove_tracks_from_playlist(
+                        response = spotify_client.remove_tracks_from_playlist(
                             playlist_id=arguments.get("playlist_id"),
                             track_ids=track_ids
                         )
                         return [types.TextContent(
                             type="text",
-                            text="Tracks removed from playlist."
+                            text=json.dumps({
+                                "status": "Tracks removed from playlist.",
+                                "spotify_response": response,
+                            }, indent=2)
                         )]
 
                     case "change_details":

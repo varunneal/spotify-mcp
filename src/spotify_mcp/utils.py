@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Optional, Dict
+from typing import Any, Optional, Dict
 import functools
 from typing import Callable, TypeVar
 from typing import Optional, Dict
@@ -72,18 +72,28 @@ def parse_artist(artist_item: dict, detailed=False) -> Optional[dict]:
 def parse_playlist(playlist_item: dict, username, detailed=False) -> Optional[dict]:
     if not playlist_item:
         return None
+    owner = playlist_item.get('owner') or {}
+    owner_name = owner.get('display_name') or owner.get('id')
+    tracks_info = playlist_item.get('items') or playlist_item.get('tracks') or {}
     narrowed_item = {
-        'name': playlist_item['name'],
-        'id': playlist_item['id'],
-        'owner': playlist_item['owner']['display_name'],
-        'user_is_owner': playlist_item['owner']['display_name'] == username,
-        'total_tracks': playlist_item['tracks']['total'],
+        'name': playlist_item.get('name'),
+        'id': playlist_item.get('id'),
+        'owner': owner_name,
+        'user_is_owner': owner_name == username,
+        'total_tracks': tracks_info.get('total', 0),
     }
     if detailed:
         narrowed_item['description'] = playlist_item.get('description')
         tracks = []
-        for t in playlist_item['tracks']['items']:
-            tracks.append(parse_track(t['track']))
+        for item in tracks_info.get('items') or []:
+            track_item = None
+            if isinstance(item, dict):
+                track_item = item.get('item') or item.get('track')
+            else:
+                track_item = item
+            track = parse_track(track_item)
+            if track:
+                tracks.append(track)
         narrowed_item['tracks'] = tracks
 
     return narrowed_item
@@ -144,7 +154,7 @@ def parse_search_results(results: Dict, qtype: str, username: Optional[str] = No
 
     return dict(_results)
 
-def parse_tracks(items: Dict) -> list:
+def parse_tracks(items: Dict[str, Any]) -> list:
     """
     Parse a list of track items and return a list of parsed tracks.
 
@@ -157,7 +167,13 @@ def parse_tracks(items: Dict) -> list:
     for idx, item in enumerate(items):
         if not item:
             continue
-        tracks.append(parse_track(item['track']))
+        if isinstance(item, dict):
+            track_item = item.get('item') or item.get('track')
+        else:
+            track_item = item
+        track = parse_track(track_item)
+        if track:
+            tracks.append(track)
     return tracks
 
 
