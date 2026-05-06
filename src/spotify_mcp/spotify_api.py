@@ -211,6 +211,7 @@ class Client:
             return True
         return False
 
+    @utils.ensure_username
     def get_current_user_playlists(self, limit=50) -> List[Dict]:
         """
         Get current user's playlists.
@@ -219,7 +220,12 @@ class Client:
         playlists = self.sp.current_user_playlists()
         if not playlists:
             raise ValueError("No playlists found.")
-        return [utils.parse_playlist(playlist, self.username) for playlist in playlists['items']]
+        result = []
+        for playlist in playlists['items']:
+            parsed = utils.parse_playlist(playlist, self.username)
+            if parsed:
+                result.append(parsed)
+        return result
     
     @utils.ensure_username
     def get_playlist_tracks(self, playlist_id: str, limit=50) -> List[Dict]:
@@ -231,7 +237,8 @@ class Client:
         playlist = self.sp.playlist(playlist_id)
         if not playlist:
             raise ValueError("No playlist found.")
-        return utils.parse_tracks(playlist['tracks']['items'])
+        items_info = playlist.get('items') or playlist.get('tracks') or {}
+        return utils.parse_tracks(items_info.get('items', []))
     
     @utils.ensure_username
     def add_tracks_to_playlist(self, playlist_id: str, track_ids: List[str], position: Optional[int] = None):

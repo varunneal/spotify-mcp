@@ -72,18 +72,23 @@ def parse_artist(artist_item: dict, detailed=False) -> Optional[dict]:
 def parse_playlist(playlist_item: dict, username, detailed=False) -> Optional[dict]:
     if not playlist_item:
         return None
+    items_info = playlist_item.get('items') or playlist_item.get('tracks') or {}
+    owner = playlist_item.get('owner') or {}
     narrowed_item = {
         'name': playlist_item['name'],
         'id': playlist_item['id'],
-        'owner': playlist_item['owner']['display_name'],
-        'user_is_owner': playlist_item['owner']['display_name'] == username,
-        'total_tracks': playlist_item['tracks']['total'],
+        'owner': owner.get('display_name', ''),
+        'user_is_owner': owner.get('display_name') == username,
+        'total_tracks': items_info.get('total', 0),
     }
     if detailed:
         narrowed_item['description'] = playlist_item.get('description')
         tracks = []
-        for t in playlist_item['tracks']['items']:
-            tracks.append(parse_track(t['track']))
+        for t in items_info.get('items', []):
+            raw_track = (t.get('item') or t.get('track')) if t else None
+            parsed = parse_track(raw_track) if raw_track else None
+            if parsed:
+                tracks.append(parsed)
         narrowed_item['tracks'] = tracks
 
     return narrowed_item
@@ -157,7 +162,12 @@ def parse_tracks(items: Dict) -> list:
     for idx, item in enumerate(items):
         if not item:
             continue
-        tracks.append(parse_track(item['track']))
+        raw_track = item.get('item') or item.get('track')
+        if not raw_track:
+            continue
+        parsed = parse_track(raw_track)
+        if parsed:
+            tracks.append(parsed)
     return tracks
 
 
